@@ -135,4 +135,5 @@ for i in indx_min:
     print(df.Name.loc[i])        
 
 plt.hist(average)
+plt.title("Average")
 plt.show()
