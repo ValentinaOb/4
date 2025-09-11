@@ -2,6 +2,8 @@ import random
 import matplotlib.pyplot as plt
 from matplotlib.path import Path
 from tkinter import *
+import tkinter as tk
+from tkinter import ttk
 
 #1
 polygon_3d=[(50, 200), (440, 50), (863, 41), (997, 848), (41, 952),(50, 200)]
@@ -137,6 +139,11 @@ def algor():
     #7
     selection()
 
+
+    #
+    prepare_for_graphic()
+    grahp()
+
 def prepare_for_graphic(): #connect
     global population, cross, mut
     global graphic_points, graphic_crossover, graphic_mutation, grahp_elements
@@ -224,22 +231,71 @@ def grahp():
     plt.show()
 
 
-def main():
-    global P, C, M, D
+fields={}
 
-    master = Tk()
-    Label(master, text='Population').grid(row=0)
-    Label(master, text='Crossover').grid(row=1)
-    Label(master, text='Mutation').grid(row=2)
-    Label(master, text='D').grid(row=3)
-    e1 = Entry(master)
-    e2 = Entry(master)
+def pre_start ():
+    global P, C, M, D
+    P=fields['population'].get()
+    C=fields['crossover'].get()
+    M=fields['mutation'].get()
+    D=fields['d'].get()
+
+    algor()
+
+
+def main():
+    root = Tk()
+    root.geometry('600x400')
+
+    #Entry
+    
+    fields['population_label'] = ttk.Label(text='Population:')
+    fields['population'] = ttk.Entry()
+
+    fields['crossover_label'] = ttk.Label(text='Crossover:')
+    fields['crossover'] = ttk.Entry()
+
+    fields['mutation_label'] = ttk.Label(text='Mutation:')
+    fields['mutation'] = ttk.Entry()
+
+    fields['d_label'] = ttk.Label(text='D:')
+    fields['d'] = ttk.Entry() #fields['d'] = ttk.Entry(show="*")
+
+    for field in fields.values():
+        field.pack(anchor=tk.W, padx=20, pady=5, fill=None)
+        
+    ttk.Button(text='P.P').pack(anchor=tk.W, padx=45, pady=25)
+    ttk.Button(text='ReP', command=pre_start).pack(anchor=tk.W, padx=45, pady=3)
+        
+    '''population_label = ttk.Label(root, text="Population:").pack(side=tk.LEFT, padx=5)
+    name_entry = ttk.Entry(root).pack(side=tk.LEFT, expand=False, fill=tk.X, padx=5)
+
+    crossover_label = ttk.Label(root, text="Crossover:").pack(side=tk.LEFT, padx=5)
+    crossover_entry = ttk.Entry(root).pack(side=tk.LEFT, expand=False, fill=tk.X, padx=5)
+    
+    mutation_label = ttk.Label(root, text="Mutation:").pack(side=tk.LEFT, padx=5)
+    mutation_entry = ttk.Entry(root).pack(side=tk.LEFT, expand=False, fill=tk.X, padx=5)
+    
+    d_label = ttk.Label(root, text="D:").pack(side=tk.LEFT, padx=5)
+    d_entry = ttk.Entry(root).pack(side=tk.LEFT, expand=False, fill=tk.X, padx=5)
+    
+    
+    Label(root, text='Population').grid(row=0)
+    Label(root, text='Crossover').grid(row=1)
+    Label(root, text='Mutation').grid(row=2)
+    Label(root, text='D').grid(row=3)
     e1.grid(row=0, column=1)
     e2.grid(row=1, column=1)
+    e3.grid(row=2, column=1)
+    e4.grid(row=3, column=1)
+
+    pp_button = Button(root, text="P.P", command=algor)
+    pp_button.pack(side=tk.TOP, expand=True,fill=tk.NONE)'''
+
     mainloop()
 
 
-#main()
-algor()
+main()
+'''algor()
 prepare_for_graphic()
-grahp()
+grahp()'''
