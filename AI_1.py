@@ -4,6 +4,7 @@ from matplotlib.path import Path
 from tkinter import *
 import tkinter as tk
 from tkinter import ttk
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 #1
 polygon_3d=[(50, 200), (440, 50), (863, 41), (997, 848), (41, 952),(50, 200)]
@@ -30,6 +31,8 @@ f,x_prev,y_prev=0,0,0
 a=1
 r_f=0
 r_m=0
+
+ax=None
 
 #3
 
@@ -104,10 +107,11 @@ def selection ():
         population.append([xc,xd,yc,yd,f])
     print("\nNew population ", population)
 
-def algor():
+def algor(btn):
     global population, r_f, r_m
 
-    population = [individual() for i in range(P)]
+    if btn==0:
+        population = [individual() for i in range(P)]
     print('\nPopulation ',population)
 
     #4
@@ -144,6 +148,8 @@ def algor():
     prepare_for_graphic()
     grahp()
 
+    #
+
 def prepare_for_graphic(): #connect
     global population, cross, mut
     global graphic_points, graphic_crossover, graphic_mutation, grahp_elements
@@ -171,10 +177,10 @@ def prepare_for_graphic(): #connect
     grahp_elements=graphic_points+graphic_crossover+graphic_mutation
     
 def grahp():
-    global graphic_points, graphic_crossover, graphic_mutation, grahp_elements
+    global graphic_points, graphic_crossover, graphic_mutation, grahp_elements, ax
 
     ax = plt.axes(projection='3d')
-    print('!!!          ',len(graphic_points))
+    #ax = plt.axes(projection='3d')
 
     # Polygon
     for i in range(len(polygon_3d)):
@@ -225,27 +231,82 @@ def grahp():
     '''
     #
     
-
-
     ax.set_title('3D Scatter Plot')
-    plt.show()
+    
 
+    #return ax
+    #plt.show()
+
+def update_canvas():    
+    fields_gr['canvas'].draw()
+    k=0
+    for i in grahp_elements:
+        #for x, y, f in zip(i[0], i[1],i[2]):
+        if k==0:
+            fields_gr['table'].insert("", "end", values=('', 'Population',''), tags=('population'))
+        elif k==P:
+            fields_gr['table'].insert("", "end", values=('', 'Crossover',''), tags=('crossover'))
+        elif k==P+C:
+            fields_gr['table'].insert("", "end", values=('', 'Mutation',''), tags=('mutation'))
+        elif k==P+C+M:
+            fields_gr['table'].insert("", "end", values=('', 'D',''), tags=('d'))
+        fields_gr['table'].insert("", "end", values=(i[0], i[1],i[2]))
+        k+=1
+
+    fields_gr['table'].tag_configure('population', background='lightgreen')
+    fields_gr['table'].tag_configure('crossover', background='brown')
+    fields_gr['table'].tag_configure('mutation', background='lightpink')
+    fields_gr['table'].tag_configure('d', background='grey')
 
 fields={}
+fields_gr={}
 
 def pre_start ():
     global P, C, M, D
-    P=fields['population'].get()
-    C=fields['crossover'].get()
-    M=fields['mutation'].get()
-    D=fields['d'].get()
+    '''P=int(fields['population'].get())
+    C=int(fields['crossover'].get())
+    M=int(fields['mutation'].get())
+    D=int(fields['d'].get())'''
 
-    algor()
+    algor(0)
+    update_canvas()
+    #main()
+
+def re_pop():
+    algor(1)
+    update_canvas()
+
 
 
 def main():
     root = Tk()
-    root.geometry('600x400')
+    root.geometry('1600x600')
+
+    #Canva
+    fig = plt.gcf()
+    fields_gr['canvas'] = FigureCanvasTkAgg(fig, root)
+    canvas_widget = fields_gr['canvas'].get_tk_widget()
+    canvas_widget.pack(side='right',fill=Y, padx=15, pady=30)
+    
+    
+    '''fig = plt.gcf()
+
+    fields_gr['canvas'] = FigureCanvasTkAgg(fig, root)
+    canvas_widget = fields_gr['canvas'].get_tk_widget()
+    canvas_widget.pack(side='right')'''
+
+    #TABLE
+    global grahp_elements
+
+    fields_gr['table'] = ttk.Treeview(root, columns=('X','Y','F'), show="headings")
+    fields_gr['table'].heading("X", text="X")
+    fields_gr['table'].heading("Y", text="Y")
+    fields_gr['table'].heading("F", text="F")
+    for i in grahp_elements:
+        for x, y, f in zip(i[0], i[1],i[2]):
+            fields_gr['table'].insert("", "end", values=(x, y,f))
+
+    fields_gr['table'].pack(side='right',fill=Y, padx=15,pady=30)
 
     #Entry
     
@@ -260,12 +321,12 @@ def main():
 
     fields['d_label'] = ttk.Label(text='D:')
     fields['d'] = ttk.Entry() #fields['d'] = ttk.Entry(show="*")
-
+    
     for field in fields.values():
         field.pack(anchor=tk.W, padx=20, pady=5, fill=None)
         
-    ttk.Button(text='P.P').pack(anchor=tk.W, padx=45, pady=25)
-    ttk.Button(text='ReP', command=pre_start).pack(anchor=tk.W, padx=45, pady=3)
+    ttk.Button(text='P.P', command=pre_start).pack(anchor=tk.W, padx=45, pady=25)
+    ttk.Button(text='ReP', command=re_pop).pack(anchor=tk.W, padx=45, pady=3)
         
     '''population_label = ttk.Label(root, text="Population:").pack(side=tk.LEFT, padx=5)
     name_entry = ttk.Entry(root).pack(side=tk.LEFT, expand=False, fill=tk.X, padx=5)
@@ -291,6 +352,7 @@ def main():
 
     pp_button = Button(root, text="P.P", command=algor)
     pp_button.pack(side=tk.TOP, expand=True,fill=tk.NONE)'''
+
 
     mainloop()
 
