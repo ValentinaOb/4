@@ -41,7 +41,7 @@ feature_names = X.columns
 model = GaussianNB()
 model.fit(X, y)                   # Навчання
 
-# 🔍 Приклад нового зразка
+# New element
 sample = {
     'sepal length (cm)': 5.5,
     'sepal width (cm)': 3.0,
