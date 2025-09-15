@@ -19,6 +19,7 @@ import scipy.stats
 from sklearn.metrics.pairwise import euclidean_distances
 from mlflow import MlflowClient
 from mlflow.artifacts import download_artifacts
+import os
 
 class ClasterAnalysis:
 
@@ -112,35 +113,13 @@ class ClasterAnalysis:
         return self.k_opt
         # Метод Ліктя. Коли верхні і нижні лінії сходяться максимально один до одного - саме таку к-ть кластерів і рекомендується
         
-        '''for i in wcss:
-            if wcss.index(i) != 0:
-                subtraction.append(i-i_prev)
-            elif wcss.index(i) == 1:
-                subtraction.append(i-i_prev)
-            i_prev=i
-        idx = np.argmin(subtraction) # місце найбільшого негативного вигину
-        self.k_opt =idx+1 
-
-        if len(inertias) >= 3:
-            subtraction = np.diff(wcss, n=2)
-            idx = np.argmin(subtraction)
-            self.k_opt = idx + 1
-        else:
-            self.k_opt = ks[np.argmin(inertias)]
-        return ks'''
-
     def silhouette_method(self):        
         silhouette_avg=[]
-        #maxim=0
         for k in range(2, 11):
             kmeans = KMeans(k, random_state=42)
             labels = kmeans.fit_predict(self.data)
 
             sill_sc= silhouette_score(self.data, labels)
-            '''if sill_sc>maxim:
-                maxim=sill_sc
-                maxim_k=k'''
-
             silhouette_avg.append(silhouette_score(self.data, labels))
             print("For n_clusters ", k,", the average silhouette_score is ", sill_sc)
         k_opt = np.argmax(np.diff(silhouette_avg))
@@ -153,53 +132,6 @@ class ClasterAnalysis:
         plt.show()
         
         return k_opt
-
-
-        '''for k in range(1, 11):
-            silhouette_avg = silhouette_score(self.data, self.labels_)
-
-            print("For n_clusters =", k,", the average silhouette_score is :", silhouette_avg)'''
-            
-        '''silhouette_scores = []
-        for k in range(1, 11):    
-            score = silhouette_score(self.data, self.labels_)
-            silhouette_scores.append(score)
-            print(f"For n_clusters = {k}, the average silhouette score is: {score:.4f}")
-
-        # Plotting the silhouette scores to find the optimal k
-        plt.plot(range(1, 11), silhouette_scores, marker='o')
-        plt.xlabel("Number of Clusters (k)")
-        plt.ylabel("Average Silhouette Score")
-        plt.title("Silhouette Analysis for Optimal k")
-        plt.grid(True)
-        plt.show()
-
-        # The optimal k is typically the one with the highest silhouette score.
-        self.k_opt = np.argmax(silhouette_scores) + 2 # +2 because range starts from 2
-        print(f"Optimal number of clusters based on Silhouette Score: {self.k_opt}")
-
-        return self.k_opt'''
-        
-        '''ks = list(range(k_min, k_max + 1))
-        sil_scores = []
-        for k in ks:
-            km = KMeans(n_clusters=k, random_state=self.random_state, n_init=10)
-            labels = km.fit_predict(self.data)
-            if len(set(labels)) == 1:
-                sil_scores.append(-1)
-            else:
-                sil_scores.append(silhouette_score(self.data, labels))
-
-        plt.figure()
-        plt.plot(ks, sil_scores, marker="o")
-        plt.xlabel("k")
-        plt.ylabel("Average silhouette score")
-        plt.title("Silhouette vs k")
-        plt.grid(True)
-        plt.show()
-
-        self.k_opt = int(ks[np.argmax(sil_scores)])
-        return ks, sil_scores'''
 
     def gap_statistic(self):
         gap_values = []
@@ -232,65 +164,6 @@ class ClasterAnalysis:
 
         return k_opt
 
-        '''rng = np.random.default_rng(self.random_state if random_state is None else random_state)
-        X = self.data
-        n, d = X.shape
-        ks = list(range(k_min, k_max + 1))
-        log_wks = []
-        log_wk_refs = {k: [] for k in ks}
-
-        mins = X.min(axis=0)
-        maxs = X.max(axis=0)
-
-        for k in ks:
-            km = KMeans(n_clusters=k, random_state=self.random_state, n_init=10)
-            km.fit(X)
-            Wk = km.inertia_
-            log_wks.append(np.log(Wk + 1e-12))
-
-            for b in range(B):
-                X_ref = rng.uniform(low=mins, high=maxs, size=(n, d))
-                km_ref = KMeans(n_clusters=k, random_state=self.random_state, n_init=10)
-                km_ref.fit(X_ref)
-                log_wk_refs[k].append(np.log(km_ref.inertia_ + 1e-12))
-
-        gaps = []
-        sds = []
-        for i, k in enumerate(ks):
-            ref_vals = np.array(log_wk_refs[k])
-            gap_k = np.mean(ref_vals) - log_wks[i]
-            sd_k = np.sqrt(1.0 + 1.0 / B) * np.std(ref_vals, ddof=1)
-            gaps.append(gap_k)
-            sds.append(sd_k)
-
-        # правило Tibshirani: обрати найменший k такий, що gap(k) >= gap(k+1) - s_{k+1}
-        opt_k = ks[0]
-        for i in range(len(ks) - 1):
-            if gaps[i] >= gaps[i + 1] - sds[i + 1]:
-                opt_k = ks[i]
-                break
-            else:
-                opt_k = ks[-1]
-        self.k_opt = int(opt_k)
-
-        plt.figure()
-        plt.errorbar(ks, gaps, yerr=sds, marker="o", linestyle="-")
-        plt.xlabel("k")
-        plt.ylabel("Gap(k)")
-        plt.title("Gap statistic")
-        plt.grid(True)
-        plt.show()
-
-        self._gap_results = {
-            "ks": ks,
-            "gaps": gaps,
-            "sdk": sds,
-            "log_wks": log_wks,
-            "log_wk_refs": log_wk_refs,
-        }
-        return self._gap_results
-        '''
-    
     def hopkins_statistic(self):
         self.hopkins = hopkins(self.data, self.data.shape[0])
 
@@ -312,40 +185,11 @@ class ClasterAnalysis:
         #Values close to 0: Indicate that the data is regularly spaced, also suggesting a lack of strong clustering tendency
         #Values around 0.5: Suggest that the data is randomly distributed and unlikely to contain significant clusters
         #Values close to 1: Indicate that the data has a high tendency to cluster, suggesting the presence of meaningful clusters
-        
-        '''
-        rng = np.random.default_rng(self.random_state if random_state is None else random_state)
-        X = np.asarray(self.data)
-        n, d = X.shape
-        m = min(sampling_size, n - 1)
-
-        random_indices = rng.choice(n, size=m, replace=False)
-        X_m = X[random_indices]
-
-        mins = X.min(axis=0)
-        maxs = X.max(axis=0)
-        U = rng.uniform(low=mins, high=maxs, size=(m, d))
-
-        nbrs = NearestNeighbors(n_neighbors=1).fit(X)
-
-        u_distances = nbrs.kneighbors(U, return_distance=True)[0].ravel()
-
-        nbrs2 = NearestNeighbors(n_neighbors=2).fit(X)
-        w_dists_all = nbrs2.kneighbors(X_m, return_distance=True)[0]
-        w_distances = w_dists_all[:, 1]
-
-        u_power = u_distances ** d
-        w_power = w_distances ** d
-
-        H = u_power.sum() / (u_power.sum() + w_power.sum() + 1e-12)
-        self.hopkins_statistic = float(H)
-        return self.hopkins_statistic'''
 
     def _metric_calculation(self):
         centers, u, u0, d, jm, p, fPC = fuzz.cmeans(
             self.data.T, 3, m=2, error=0.005, maxiter=1000, init=None
         )
-
         #print('\nFPC ',fPC) # Fuzzy Partition Coefficient, Оцінює чіткість кластеризації, чим ближче до 1, тим краща сегментація
         
         unique_elements, counts = np.unique(self.data, return_counts=True)
@@ -370,8 +214,6 @@ class ClasterAnalysis:
         ])
 
         partition_indx= numerator / (N * min_center_dist_sq) # Враховує як компактність всередині кластерів, так і розділення відстань між центрами кластерів, < — краще
-
-        #print('PI ',partition_indx)
         
         #SI
         kmeans = KMeans(n_clusters=3, random_state=42)
@@ -397,152 +239,66 @@ class ClasterAnalysis:
         }
         return metrics
         
-        '''if labels is None:
-            labels = self.labels_
-
-        labels = np.asarray(labels)
-        unique_labels = np.unique(labels)
-        k = len(unique_labels)
-        n = self.data.shape[0]
-
-        # centers (якщо ще немає) — обчислимо
-        if self.centers_ is None or len(self.centers_) != k:
-            centers = []
-            for lab in unique_labels:
-                members = self.data[labels == lab]
-                centers.append(members.mean(axis=0))
-            centers = np.vstack(centers)
-        else:
-            centers = self.centers_
-
-        # нечітка матриця U (аппроксимація)
-        U = self._compute_fuzzy_membership(self.data, centers, m=m)
-        # Partition Coefficient (PC)
-        PC = np.sum(U ** 2) / n
-
-        # Partition Entropy (PE)
-        eps = 1e-12
-        PE = - np.sum(U * np.log(U + eps)) / n
-
-        # Xie-Beni index (часто називають partition index) —
-        # XB = sum_{i,j} u_ij^m * ||x_i - v_j||^2  / (n * min_{p!=q} ||v_p - v_q||^2)
-        n_samples = n
-        # numerator
-        distances_sq = cdist(self.data, centers, metric="sqeuclidean")  # (n,k)
-        num = np.sum((U ** m) * distances_sq)
-        # den
-        if k >= 2:
-            center_dists_sq = squareform(pdist(centers, metric="sqeuclidean"))
-            # мінімальна міжцентрична відстань (поза діагоналлю)
-            min_center_dist_sq = np.min(center_dists_sq[np.nonzero(center_dists_sq)])
-            den = n_samples * (min_center_dist_sq + 1e-12)
-            XB = num / den
-        else:
-            XB = np.nan
-
-        # Separation index — реалізуємо через Dunn index:
-        # Dunn = (min inter-cluster distance) / (max intra-cluster diameter)
-        # точна реалізація: для кожної пари кластерів візьмемо мін відстаней між їх точками (inter),
-        # для кожного кластеру — max відстань між парою точок (intra diameter).
-        # Це O(n^2) — ок для невеликих наборів (Iris).
-        max_intra = 0.0
-        for lab in unique_labels:
-            members = self.data[labels == lab]
-            if members.shape[0] <= 1:
-                diam = 0.0
-            else:
-                diam = np.max(pdist(members, metric="euclidean"))
-            if diam > max_intra:
-                max_intra = diam
-
-        min_inter = np.inf
-        for i, la in enumerate(unique_labels):
-            for lb in unique_labels[i + 1:]:
-                Xi = self.data[labels == la]
-                Xj = self.data[labels == lb]
-                if Xi.shape[0] == 0 or Xj.shape[0] == 0:
-                    continue
-                # мін відстаней між точками у різних кластерах
-                d_ij = np.min(cdist(Xi, Xj, metric="euclidean"))
-                if d_ij < min_inter:
-                    min_inter = d_ij
-
-        if max_intra == 0:
-            dunn = np.inf
-        else:
-            dunn = min_inter / (max_intra + 1e-12)
-
-        metrics = {
-            "PC": float(PC),
-            "PE": float(PE),
-            "XieBeni": float(XB) if not np.isnan(XB) else None,
-            "Dunn": float(dunn),
-        }
-        return metrics'''
-
 class Mlflow_validator:
     def __init__(self, k_opt=0, hopk=0, metrics={'Metrix':0}):
         self.client=None
         self.k_opt=k_opt
         self.hopk=hopk
         self.metrics=metrics
+
         self.run_id=None
-        self.experimen=None
+        #self.experiment=None
 
         self.data={
             'K_opt':self.k_opt,
             'Hopk':self.hopk,
             'Metrics':self.metrics}
         
+        self.url="http://127.0.0.1:8080"
+
         with open("artifacts.txt", "w") as f:
             for key, value in self.data.items():
                 f.write(f"{key} = {value}\n")
 
-
     def _initialization_mlflow(self):
-        experiment_name = "New_Experiment",
-        tracking_uri = "http://127.0.0.1:8000",
-        run_name = "first_run"
+        mlflow.set_tracking_uri(self.url)
+        mlflow.set_experiment("MLflow Quickstart")
         
-        mlflow.set_tracking_uri(tracking_uri)
-        mlflow.set_experiment(experiment_name)
-        run = mlflow.start_run(run_name=run_name)
-
-        print('run id ', run.info.run_id)
-        
-        return run
-
+        self._log_artifacts()
+        self._download_artifact()
 
     def _log_artifacts(self):
-        self.client.log_artifact("artifacts.txt")
-        #os.remove("artifacts.txt")
+        with mlflow.start_run() as run:
+            self.run_id = run.info.run_id
+            mlflow.log_artifact("artifacts.txt")
+        os.remove("artifacts.txt")
             
     def _download_artifact(self):
-        local_path = download_artifacts(run_id=self.experiment.experiment_id, artifact_path="artifacts.txt")
-        print("local_path", local_path)
-        
+        local_path_file = download_artifacts(artifact_uri="artifacts.txt")
+        print(f"Specific artifact downloaded to: {local_path_file}")
+
 
 def main():
     iris = load_iris()
     X = iris.data
     y = iris.target
 
-    ca = ClasterAnalysis(X, y, n_clusters=3, method="nearest_neighbour")
+    ca = ClasterAnalysis(X, y, n_clusters=3, method="k_means")
     #model = ca._clustering_procedure()
     #print('Model ', model)
     
-    k_optim=ca.elbow_method()
+    #k_optim=ca.elbow_method()
     #k_optim=ca.silhouette_method()
-    #k_optim=ca.gap_statistic()
+    k_optim=ca.gap_statistic()
 
-    #print('k_opt ',k_optim)
+    print('k_opt ',k_optim)
 
     hopk=ca.hopkins_statistic()
-    #print('Hopkins ', hopk)
+    print('Hopkins ', hopk)
 
     
     metrics = ca._metric_calculation()
-    #print('Metrics ', metrics)
+    print('Metrics ', metrics)
 
     mlf=Mlflow_validator(k_optim,hopk,metrics)
     mlf._initialization_mlflow()
