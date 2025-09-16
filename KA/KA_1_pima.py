@@ -20,6 +20,7 @@ from sklearn.metrics.pairwise import euclidean_distances
 from mlflow import MlflowClient
 from mlflow.artifacts import download_artifacts
 import os
+import time
 
 class ClasterAnalysis:
 
@@ -190,14 +191,12 @@ class ClasterAnalysis:
         centers, u, u0, d, jm, p, fPC = fuzz.cmeans(
             self.data.T, 3, m=2, error=0.005, maxiter=1000, init=None
         )
-        #print('\nFPC ',fPC) # Fuzzy Partition Coefficient, Оцінює чіткість кластеризації, чим ближче до 1, тим краща сегментація
         
         unique_elements, counts = np.unique(self.data, return_counts=True)
         probabilities = counts / len(self.data)
 
         EC = scipy.stats.entropy(probabilities, base=2)
-        #print('EC ', EC) # The higher. The particles are scattered randomly and are in constant, disordered motion
-
+        
         # PI
         U = u.T  # матриця приналежностей
         N, C = U.shape
@@ -240,58 +239,67 @@ class ClasterAnalysis:
         return metrics
         
 class Mlflow_validator:
-    def __init__(self, k_opt=0, hopk=0, metrics={'Metrix':0}):
+    def __init__(self, method, df, k_opt=0, hopk=0, metrics={'Metrix':0}):
         self.client=None
+        self.method=method
+        self.df=df
         self.k_opt=k_opt
         self.hopk=hopk
         self.metrics=metrics
 
         self.run_id=None
         #self.experiment=None
-
-        self.data={
-            'K_opt':self.k_opt,
-            'Hopk':self.hopk,
-            'Metrics':self.metrics}
         
         self.url="http://127.0.0.1:8080"
 
-        with open("artifacts.txt", "w") as f:
-            for key, value in self.data.items():
-                f.write(f"{key} = {value}\n")
 
-    def _initialization_mlflow(self):
+    def _initialization_mlflow(self):        
         mlflow.set_tracking_uri(self.url)
         mlflow.set_experiment("MLflow Quickstart")
-        
+        self.run_id = mlflow.start_run().info.run_id
+
         self._log_artifacts()
         self._download_artifact()
+        self.end_run()
 
     def _log_artifacts(self):
-        with mlflow.start_run() as run:
-            self.run_id = run.info.run_id
-            mlflow.log_artifact("artifacts.txt")
-        os.remove("artifacts.txt")
+        start_time = time.strftime("%Y-%m-%d %H:%M:%S")
+        mlflow.log_param("start_time", start_time)
+        mlflow.log_param("method", self.method)
+        
+        numb_obj, columns = self.df.shape
+        mlflow.log_param("numb_obj", numb_obj)
+        mlflow.log_param("columns", columns)
+        mlflow.log_param("k_opt", self.k_opt)
+
+        for key in self.metrics:
+            mlflow.log_metric(key,self.metrics.get(key))
+
+        mlflow.log_artifact("ML/pima.csv")
+        #os.remove("pima.csv")
             
     def _download_artifact(self):
-        local_path_file = download_artifacts(artifact_uri="artifacts.txt")
+        local_path_file = download_artifacts(artifact_uri="ML/pima.csv",dst_path="KA/")
         print(f"Specific artifact downloaded to: {local_path_file}")
 
+    def end_run(self):
+        mlflow.end_run()
 
 def main():
-    iris = load_iris()
-    X = iris.data
-    y = iris.target
+    # mlflow server --host 127.0.0.1 --port 8080 
+    
+    df = pd.read_csv("ML/pima.csv")  
+    X = df 
+    y = df['Age']  
 
+    method="k_means"
+
+    ca = ClasterAnalysis(X, y, n_clusters=2, method=method)
     #k_optim=ca.elbow_method()
     #k_optim=ca.silhouette_method()
     k_optim=ca.gap_statistic()
 
     print('k_opt ',k_optim)
-
-    ca = ClasterAnalysis(X, y, n_clusters=k_optim, method="k_means")
-    #model = ca._clustering_procedure()
-    #print('Model ', model)
 
     hopk=ca.hopkins_statistic()
     print('Hopkins ', hopk)
@@ -300,10 +308,9 @@ def main():
     metrics = ca._metric_calculation()
     print('Metrics ', metrics)
 
-    mlf=Mlflow_validator(k_optim,hopk,metrics)
+    mlf=Mlflow_validator(method,df,k_optim,hopk,metrics)
     mlf._initialization_mlflow()
-    mlf._log_artifacts()
-    mlf._download_artifact()
+    
 
 
     
