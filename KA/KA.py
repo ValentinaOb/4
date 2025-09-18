@@ -84,6 +84,23 @@ class ClasterAnalysis:
             plt.show()
 
             return knn
+            
+        elif self.method == "c_means":
+            centers, u, u0, d, jm, p, fpc = fuzz.cmeans(
+            self.data.T, n_clusters, m=2, error=0.005, maxiter=1000, init=None
+            )
+
+            plt.figure(figsize=(8, 6))
+            plt.scatter(self.data[:, 0], self.data[:, 1], c=self.labels_, cmap='viridis', s=50)
+            plt.title("K-Means clustering on Iris dataset (2 features)")
+            plt.xlabel("Sepal length")
+            plt.ylabel("Sepal width")
+            plt.grid(True)
+
+            plt.scatter(centers[:, 0], centers[:, 1], c='red', s=200, alpha=0.75, marker='X', label='Centers')
+            plt.legend()
+
+            plt.show()
 
     def elbow_method(self):
         wcss = []
@@ -285,15 +302,16 @@ def main():
 
     #k_optim=ca.elbow_method()
     #k_optim=ca.silhouette_method()
-    k_optim=ca.gap_statistic()
+    '''k_optim=ca.gap_statistic()
 
-    print('k_opt ',k_optim)
+    print('k_opt ',k_optim)'''
 
-    ca = ClasterAnalysis(X, y, n_clusters=k_optim, method="k_means")
+    ca = ClasterAnalysis(X, y, n_clusters=2, method="c_means")
+    ca._clustering_procedure()
     #model = ca._clustering_procedure()
     #print('Model ', model)
 
-    hopk=ca.hopkins_statistic()
+    '''hopk=ca.hopkins_statistic()
     print('Hopkins ', hopk)
 
     
@@ -303,7 +321,7 @@ def main():
     mlf=Mlflow_validator(k_optim,hopk,metrics)
     mlf._initialization_mlflow()
     mlf._log_artifacts()
-    mlf._download_artifact()
+    mlf._download_artifact()'''
 
 
     

@@ -49,42 +49,76 @@ class ClasterAnalysis:
 
         if self.method == "k_means":
             
-            kmeans = KMeans(n_clusters=3, random_state=42)
+            kmeans = KMeans(n_clusters=self.n_clusters, random_state=42)
             kmeans.fit(self.data)
 
             self.labels_ = kmeans.labels_
             plt.figure(figsize=(8, 6))
-            plt.scatter(self.data[:, 0], self.data[:, 1], c=self.labels_, cmap='viridis', s=50)
-            plt.title("K-Means clustering on Iris dataset (2 features)")
-            plt.xlabel("Sepal length")
-            plt.ylabel("Sepal width")
+            plt.scatter(self.data[:, 4], self.data[:, 5], c=self.labels_, cmap='viridis', s=50)
+            plt.title("K-Means clustering (2 features)")
+            plt.xlabel("DiabetesPedigreeFunction")
+            plt.ylabel("Age")
             plt.grid(True)
 
             centroids = kmeans.cluster_centers_
-            plt.scatter(centroids[:, 0], centroids[:, 1], c='red', s=200, alpha=0.75, marker='X', label='Centroids')
+            plt.scatter(centroids[:, 4], centroids[:, 5], c='red', s=200, alpha=0.75, marker='X', label='Centroids')
             plt.legend()
 
             plt.show()
 
-            print('Centroids ', centroids)
+            print('Centroids ', centroids[:,4])
 
             return kmeans
         
         elif self.method == "nearest_neighbour":
-            knn = KNeighborsClassifier(n_neighbors=5)
+            knn = KNeighborsClassifier(n_neighbors=self.n_clusters)
             knn.fit(self.data, self.data_y)
 
             pred = knn.predict(self.data)
             
             plt.figure(figsize=(8, 6))
-            plt.scatter(self.data[:, 0], self.data[:, 1], c=pred, cmap='viridis', s=50)
-            plt.title("KNN classification on Iris dataset (2 features)")
-            plt.xlabel("Sepal length")
-            plt.ylabel("Sepal width")
+            plt.scatter(self.data[:, 4], self.data[:, 5], c=pred, cmap='viridis', s=50)
+            plt.title("KNN classification (2 features)")
+            plt.xlabel("DiabetesPedigreeFunction")
+            plt.ylabel("Age")
             plt.grid(True)
             plt.show()
 
             return knn
+
+        elif self.method == "c_means":
+            centers, u, u0, d, jm, p, fpc = fuzz.cmeans(
+            self.data.T, n_clusters, m=2, error=0.005, maxiter=1000, init=None
+            )
+            # Жорсткі кластери
+            hard_clusters = np.argmax(u, axis=0)
+
+            plt.figure(figsize=(8, 6))
+            plt.scatter(
+                self.data[:, 4], self.data[:, 5],
+                c=hard_clusters, cmap='viridis', s=50
+            )
+            plt.title("C-Means clustering (2 features)")
+            plt.xlabel("DiabetesPedigreeFunction")
+            plt.ylabel("Age")
+            plt.grid(True)
+
+            plt.scatter(
+                centers[:, 4], centers[:, 5],
+                c='red', s=200, alpha=0.75, marker='X', label='Centers'
+            )
+            plt.legend()
+            plt.show()
+
+        elif self.method == "gustafson_kessel":
+            
+            plt.legend()
+            plt.show()
+            
+        elif self.method == "gath_geva":
+                    
+            plt.legend()
+            plt.show()
 
     def elbow_method(self):
         wcss = []
@@ -290,14 +324,18 @@ def main():
     
     df = pd.read_csv("ML/pima.csv")  
     X = df 
-    y = df['Age']  
+    y = df['DiabetesPedigreeFunction']  
+    print('x ', X)  
+    print('y ', y)
 
-    method="k_means"
+    method="c_means"
+    #method="k_means"
 
     ca = ClasterAnalysis(X, y, n_clusters=2, method=method)
+    ca._clustering_procedure()
     #k_optim=ca.elbow_method()
     #k_optim=ca.silhouette_method()
-    k_optim=ca.gap_statistic()
+    '''k_optim=ca.gap_statistic()
 
     print('k_opt ',k_optim)
 
@@ -309,7 +347,7 @@ def main():
     print('Metrics ', metrics)
 
     mlf=Mlflow_validator(method,df,k_optim,hopk,metrics)
-    mlf._initialization_mlflow()
+    mlf._initialization_mlflow()'''
     
 
 

@@ -30,6 +30,7 @@ graphic_r_d=[]
 indiv=[]
 f,x_prev,y_prev=0,0,0
 a=1
+b=5
 r_f=0
 r_m=0
 
@@ -41,11 +42,6 @@ def is_inside(point, polygon):
     return polygon.contains_point(point)
 
 def individual ():
-    '''xc=random.randrange(0,999)
-    xd=random.randrange(0,999)
-    
-    yc=random.randrange(0,999)
-    yd=random.randrange(0,999)'''
     global f, x_prev, y_prev
     inside=False
     while inside==False:
@@ -58,7 +54,7 @@ def individual ():
         if inside==True:
             inside=True
                 
-            f+=a/(((x-x_prev)**2)+((y-y_prev)**2)+1)
+            f+=a/(((x-x_prev)**2)+((y-y_prev)**2)+1) +b/(((x-x_prev)**2)+((y-y_prev)**2)+1)
             x_prev=x
             y_prev=y
 
@@ -262,6 +258,7 @@ def grahp():
             max=grahp_elements[i][2]
             max_z_index=i
     ax.text(grahp_elements[max_z_index][0], grahp_elements[max_z_index][1], grahp_elements[max_z_index][2],  'm', size=10, color='r') 
+    print('\n\n\ngrahp_elements[i][2]; ', grahp_elements[max_z_index][0], grahp_elements[max_z_index][1], grahp_elements[max_z_index][2])
     '''
     for i in range(len(graphic_points)):
         if max< graphic_points[i][2]:
@@ -420,6 +417,3 @@ def main():
 
 
 main()
-'''algor()
-prepare_for_graphic()
-grahp()'''
