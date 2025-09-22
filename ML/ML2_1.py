@@ -2,10 +2,26 @@ from sklearn.datasets import load_iris
 import pandas as pd
 import numpy as np
 from sklearn.naive_bayes import GaussianNB
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score
+from sklearn.linear_model import LinearRegression
 
 df = pd.read_csv("ML/pima.csv")  
+df = df.apply(lambda col: col.fillna(round(col.mean(),3)))
+print(df.head(10))
 
-print(df.head())
+X = df.drop('Outcome', axis=1)
+y = df['Outcome']
+
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
+
+gnb = GaussianNB()
+gnb.fit(X_train, y_train)
+
+y_pred = gnb.predict(X_test)
+
+accuracy = accuracy_score(y_test, y_pred)
+print('Accuracy ', accuracy)
 
 
 frequency_table = df['Outcome'].value_counts()
@@ -59,4 +75,4 @@ probs = model.predict_proba(X_new)
 
 print('\nProbabilities')
 for cls, prob in zip(model.classes_, probs[0]):
-    print(f"P({df['Outcome'].unique()[cls]} | X) = {prob:.3f}")
+    print(f"P({cls} | X) = {prob:.3f}")

@@ -21,6 +21,10 @@ from mlflow import MlflowClient
 from mlflow.artifacts import download_artifacts
 import os
 import time
+from sklearn.mixture import GaussianMixture
+from sklearn.preprocessing import LabelEncoder
+from sklearn.neighbors import KNeighborsRegressor
+
 
 class ClasterAnalysis:
 
@@ -71,8 +75,9 @@ class ClasterAnalysis:
             return kmeans
         
         elif self.method == "nearest_neighbour":
+
             knn = KNeighborsClassifier(n_neighbors=self.n_clusters)
-            knn.fit(self.data, self.data_y)
+            knn.fit(self.data, self.data_y) 
 
             pred = knn.predict(self.data)
             
@@ -90,7 +95,7 @@ class ClasterAnalysis:
             centers, u, u0, d, jm, p, fpc = fuzz.cmeans(
             self.data.T, n_clusters, m=2, error=0.005, maxiter=1000, init=None
             )
-            # Жорсткі кластери
+            
             hard_clusters = np.argmax(u, axis=0)
 
             plt.figure(figsize=(8, 6))
@@ -110,15 +115,36 @@ class ClasterAnalysis:
             plt.legend()
             plt.show()
 
-        elif self.method == "gustafson_kessel":
-            
-            plt.legend()
-            plt.show()
-            
         elif self.method == "gath_geva":
-                    
-            plt.legend()
+            
+            gg = GaussianMixture(n_components=n_clusters)
+            gg.fit(self.data, self.data_y)
+            gg_membership = gg.predict_proba(self.data)   # fuzzy матриця U
+            gg_labels = np.argmax(gg_membership, axis=1)
+
+            plt.figure(figsize=(8, 6))
+            plt.scatter(self.data[:, 4], self.data[:, 5], c=gg_labels, cmap='viridis', s=50)
+            plt.title("Gath_Geva (2 features, fuzzy membership)")
+            plt.xlabel("DiabetesPedigreeFunction")
+            plt.ylabel("Age")
+            plt.grid(True)
+            plt.scatter(gg.means_[:, 4], gg.means_[:, 5], c="red", marker="X", s=200, alpha=0.75, label='Centroids')
             plt.show()
+            
+            #замість "жорстких" міток (predict) - ймовірності приналежності (predict_proba), "fuzzy" членство
+        
+        elif self.method == "gustafson_kessel":
+
+            gk = GaussianMixture(n_components=n_clusters)
+            gk_labels = gk.fit_predict(self.data)
+
+            plt.figure(figsize=(8, 6))
+            plt.scatter(self.data[:, 4], self.data[:, 5], c=gk_labels, cmap="viridis", s=40)
+            plt.scatter(gk.means_[:, 4], gk.means_[:, 5], c="red", marker="X", s=200)
+            plt.title("Gustafson_Kessel (GaussianMixture)")
+            plt.show()
+            
+            # прац з еліпсоїдними кластерами (відповідає GK)
 
     def elbow_method(self):
         wcss = []
@@ -323,13 +349,16 @@ def main():
     # mlflow server --host 127.0.0.1 --port 8080 
     
     df = pd.read_csv("ML/pima.csv")  
-    X = df 
-    y = df['DiabetesPedigreeFunction']  
-    print('x ', X)  
-    print('y ', y)
+    df = df.apply(lambda col: col.fillna(round(col.mean(),3)))
 
-    method="c_means"
+    X = df 
+    y = df['Outcome']  
+
     #method="k_means"
+    #method="nearest_neighbour"
+    method="c_means"
+    #method="gath_geva"
+    #method="gustafson_kessel"
 
     ca = ClasterAnalysis(X, y, n_clusters=2, method=method)
     ca._clustering_procedure()
