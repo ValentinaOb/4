@@ -18,7 +18,7 @@ n=0
 def upload_image():
     global image,ABO,NBO
     ABO,NBO=[],[]
-    file_path = filedialog.askopenfilename(filetypes=[("Image Files", "*.bmp")])
+    file_path = filedialog.askopenfilename(filetypes=[("Image Files", "*.bmp; *.jpg")])
     if file_path:
         image = io.imread(file_path)
 
@@ -74,17 +74,18 @@ def count_black_dots():
     except:
         print('Not Gray!')
 
-    sum_black_pxls=sum(black_pixels)
+    #sum_black_pxls=sum(black_pixels)
 
     k=1
     for i in black_pixels:
-        ABO.append([k,i/sum_black_pxls])
+        ABO.append([k,black_pixels])
         k+=1
     print('abs ',ABO)
 
     k=1
     for i in black_pixels:
         NBO.append([k,i/max(black_pixels)])
+        #NBO.append([k,i/sum_black_pxls])
         k+=1
     print('norm ',NBO)
 
@@ -100,8 +101,8 @@ def update_canvas(img):
 
 def update_tables():
     global ABO,NBO
-    ABO.sort(key=lambda row: row[1],reverse=True)
-    NBO.sort(key=lambda row: row[1],reverse=True)
+    #ABO.sort(key=lambda row: row[1],reverse=True)
+    #NBO.sort(key=lambda row: row[1],reverse=True)
     
     for item in fields_gr['table_ABO'].get_children():
         fields_gr['table_ABO'].delete(item)
