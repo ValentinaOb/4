@@ -1,3 +1,5 @@
+import glob
+from anyio import Path
 import mlflow
 import numpy as np
 import pandas as pd
@@ -168,6 +170,7 @@ class ClasterAnalysis:
         plt.title('Elbow Method')
         plt.xlabel('Number of Clusters (k)')
         plt.ylabel('WCSS')
+        plt.savefig("KA/elbow_method.jpg", dpi=300, bbox_inches='tight') 
         plt.show()
 
         
@@ -190,6 +193,7 @@ class ClasterAnalysis:
         plt.ylabel("Average Silhouette Score")
         plt.title("Silhouette Method")
         plt.grid(True)
+        plt.savefig("KA/silhouette_method.jpg", dpi=300, bbox_inches='tight') 
         plt.show()
         
         return k_opt
@@ -217,6 +221,7 @@ class ClasterAnalysis:
         plt.xlabel('Number of Clusters k')
         plt.ylabel('Gap Statistic')
         plt.grid()
+        plt.savefig("KA/gap_statistic.jpg", dpi=300, bbox_inches='tight') 
         plt.show()
         
         k_opt = np.argmax(np.diff(gap_values)) + 2
@@ -316,7 +321,7 @@ class Mlflow_validator:
     def _initialization_mlflow(self):        
         mlflow.set_tracking_uri(self.url)
         mlflow.set_experiment("MLflow Quickstart")
-        self.run_id = mlflow.start_run().info.run_id
+        self.run_id = mlflow.start_run(run_name=self.method).info.run_id
 
         self._log_artifacts()
         self._download_artifact()
@@ -335,8 +340,12 @@ class Mlflow_validator:
         for key in self.metrics:
             mlflow.log_metric(key,self.metrics.get(key))
 
-        mlflow.log_artifact("ML/pima.csv")
+        mlflow.log_artifact("ML/pima.csv",artifact_path="dataframe")
+        files=glob.glob("KA/*.jpg")
+        for file in files:
+            mlflow.log_artifact(file,artifact_path="features")
         #os.remove("pima.csv")
+            os.remove(file)
             
     def _download_artifact(self):
         local_path_file = download_artifacts(artifact_uri="ML/pima.csv",dst_path="KA/")
@@ -364,7 +373,7 @@ def main():
     ca._clustering_procedure()
     #k_optim=ca.elbow_method()
     #k_optim=ca.silhouette_method()
-    '''k_optim=ca.gap_statistic()
+    k_optim=ca.gap_statistic()
 
     print('k_opt ',k_optim)
 
@@ -376,7 +385,7 @@ def main():
     print('Metrics ', metrics)
 
     mlf=Mlflow_validator(method,df,k_optim,hopk,metrics)
-    mlf._initialization_mlflow()'''
+    mlf._initialization_mlflow()
     
 
 

@@ -19,7 +19,7 @@ y1_pred = lda1.predict(X1_test)
 print("Accuracy (x+y):", accuracy_score(y1_test, y1_pred))
 
 
-X2 = pd.DataFrame({"f2": df["x"]*df["x"] + 2*df["y"] + df["x"]*df["y"]})
+X2 = pd.DataFrame({"f2": df["x"]*df["x"]**2 + 2*df["y"] + df["x"]*df["y"]})
 
 X2_train, X2_test, y2_train, y2_test = train_test_split(X2, y, test_size=0.3, random_state=42)
 
