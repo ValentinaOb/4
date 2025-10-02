@@ -317,7 +317,6 @@ class Mlflow_validator:
         
         self.url="http://127.0.0.1:8080"
 
-
     def _initialization_mlflow(self):        
         mlflow.set_tracking_uri(self.url)
         mlflow.set_experiment("MLflow Quickstart")

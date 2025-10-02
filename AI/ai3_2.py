@@ -34,11 +34,12 @@ segments=None
 n=3
 threshold = 0.25 #поріг, у rgb2gray рідко зустрічається стого чорний
 numb_instance=5
-kmeans=None
+knn=None
 image_learn_name=[]
 y=None
 centers=[]
 V=[]
+y_test=[]
 
 def upload_image_for_learn():
     global image_learn
@@ -57,7 +58,6 @@ def upload_image_for_learn():
         k+=1'''
 
     for i in file_path:
-        #image_learn = rgb2gray(io.imread(i)) if io.imread(i).ndim == 3 else i
         image_learn.append(rgb2gray(io.imread(i)))
         print(file_path.index(i),os.path.basename(i).replace('.bmp',''))
         if k==0:
@@ -136,7 +136,6 @@ def count_black_dots():
         black_pixels = []
         for k in range(n):
             mask = segments == k
-            #print(' k  ',  np.sum(i[mask]))
             black_pixels.append(np.sum(i[mask] < threshold)) 
 
         for j in black_pixels:
@@ -149,9 +148,6 @@ def count_black_dots():
         if ran==3:
             name+=1
             ran=0
-
-        '''ABO.append([image_learn_name[numb],black_pixels])
-        NBO.append([image_learn_name[numb],NBO_part])'''
         print('\n\nabs ',ABO)
         print('\n\nnorms ',NBO)
         numb+=1
@@ -191,15 +187,13 @@ def update_tables():
         fields_gr['table_NBO'].insert("", "end", values=(i[0], data))
 
 def learning():
-    global threshold,image,image_learn,kmeans,y, NBO,n,centers,V
+    global threshold,image,image_learn,knn,y, NBO,n,centers,V,y_test
     X, y = [], []
     #sumi=[]
 
     for i in NBO:
         X.append([np.mean(i[1], axis=0)])
-        V.append(np.mean(i[1]))#for test !!!!!
-        #X.append(i[1])
-        #if i[0] not in y:
+        V.append(np.mean(i[1]))# for test
         y.append(i[0])
 
     X=np.array(X)
@@ -213,22 +207,18 @@ def learning():
         center = np.mean(class_vectors, axis=0)
         centers.append(center)
 
-    kmeans = KMeans(n_clusters=n, random_state=42)
+    knn = KNeighborsClassifier(n_neighbors=1)
     X=np.array(centers)
-    y= np.unique(y).tolist()
-    kmeans.fit(X,y)
+    y_test = y
+    y= np.unique(y)
+    knn.fit(X,y)
 
     print('\n\n\ncenters ',centers)
-    
     result_label['text'] = "Teach"
 
 def img_check():
-    global kmeans, image,y,centers,V
+    global knn, image,y,centers,V,y_test
     h, w = image.shape
-    '''try:
-        k=int(fields['segments1'].get())
-    except:
-        print('\n     input K!\n')'''
 
     Y, X = np.mgrid[0:h, 0:w]
     angles = np.arctan2(Y, X)
@@ -246,25 +236,21 @@ def img_check():
     center = np.mean(center_bl, axis=0)
     value = np.array(center).reshape(1, -1)
     y=np.array(y)
+    
+    print('\n\n\nc ',center,'\n')
+    for i in centers:
+        print('i-c ',knn.classes_[centers.index(i)],'|', i-center)  
 
-    print('\n\n\nc ',center)
-    for i in centers:    
-        print('\n\n\ni-c ',i-center)
-
-    mapping = {old: new for old, new in zip(kmeans.labels_, y)}
-
-    prediction = kmeans.predict(value)
+    mapping = {old: new for old, new in zip(knn.classes_, y)}
+    prediction = knn.predict(value)
     result = [mapping[label] for label in prediction]
     result_label.config(text = f"Classified as {result}")
-
-    y1_test=[]
-    for i in y:
-        for j in range(3):
-            y1_test.append(np.array(j))
-    y1_pred=[]
+   
+    y_pred=[]
     for i in V:
-        y1_pred.append(kmeans.predict(np.array(i).reshape(1, -1)))
-    print("Accuracy:", accuracy_score(y1_test, y1_pred))
+        y_pred.append(knn.predict(np.array(i).reshape(1, -1)))
+    print('\n\ny1_pred ',y_pred,type(y_pred))
+    print("Accuracy:", accuracy_score(y_test, y_pred))
 
 fields={}
 fields_gr={}
