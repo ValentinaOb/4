@@ -1,32 +1,29 @@
 import glob
-from anyio import Path
+import math
+from matplotlib import cm
 import mlflow
 import numpy as np
 import pandas as pd
-from sklearn.datasets import load_iris
-from sklearn.cluster import KMeans, AgglomerativeClustering
+from sklearn.cluster import KMeans
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.metrics import silhouette_score
-from sklearn.neighbors import NearestNeighbors
-from sklearn.decomposition import PCA
-from scipy.spatial.distance import cdist, pdist, squareform
 import matplotlib.pyplot as plt
-from sklearn.metrics import accuracy_score
-from sklearn.metrics import silhouette_samples
 from pyclustertend import hopkins
 from sklearn.preprocessing import MinMaxScaler, StandardScaler
 import skfuzzy as fuzz
-from scipy.stats import entropy
 import scipy.stats
 from sklearn.metrics.pairwise import euclidean_distances
-from mlflow import MlflowClient
 from mlflow.artifacts import download_artifacts
 import os
 import time
 from sklearn.mixture import GaussianMixture
-from sklearn.preprocessing import LabelEncoder
-from sklearn.neighbors import KNeighborsRegressor
-
+import networkx as nx
+from networkx.algorithms.community import girvan_newman
+import markov_clustering as mc
+from scipy.sparse import csr_matrix
+from scipy.sparse import issparse
+from scipy.sparse.linalg import eigs
+import matplotlib as mpl
 
 class ClasterAnalysis:
 
@@ -49,30 +46,54 @@ class ClasterAnalysis:
         #self.inertia_ = None  # сумарна WCSS (для kmeans) або обчислена для інших методів
         #self._gap_results = None
 
+    def __init__(self, G=None, n_clusters=None, method="edge_cut"):
+        self.G = G
+        self.n_clusters=n_clusters
+        self.method=method
+        self.clusters=None
+        self.G_new=None
+        self.compat_matrix=None
+        self.tochastic_matrix=None
+        self.k_opt=None
+        self.eigvals=None
+        self.A=None
+        self.labels=[]
+
     def _clustering_procedure(self, n_clusters=None):
         if n_clusters is None:
             n_clusters = self.n_clusters
 
         if self.method == "k_means":
-            
+            if self.G:
+                pos = nx.spring_layout(self.G, seed=42)
+                X = np.array([pos[node] for node in self.G.nodes()]) #координати вузлів у матрицю ознак
+
             kmeans = KMeans(n_clusters=self.n_clusters, random_state=42)
             kmeans.fit(self.data)
-
             self.labels_ = kmeans.labels_
+            
             plt.figure(figsize=(8, 6))
-            plt.scatter(self.data[:, 4], self.data[:, 5], c=self.labels_, cmap='viridis', s=50)
-            plt.title("K-Means clustering (2 features)")
-            plt.xlabel("DiabetesPedigreeFunction")
-            plt.ylabel("Age")
-            plt.grid(True)
 
-            centroids = kmeans.cluster_centers_
-            plt.scatter(centroids[:, 4], centroids[:, 5], c='red', s=200, alpha=0.75, marker='X', label='Centroids')
-            plt.legend()
+            if self.G:
+                colors = ['lightblue', 'lightgreen', 'salmon', 'yellow', 'orange', 'violet']
+                for i in range(4):
+                    cluster_nodes = [node for node, label in zip(self.G.nodes(), self.labels_) if label == i]
+                    nx.draw_networkx_nodes(self.G, pos, nodelist=cluster_nodes, node_color=colors[i])
+                nx.draw_networkx_edges(self.G, pos, alpha=0.5)
 
+            else:
+                plt.scatter(self.data[:, 4], self.data[:, 5], c=self.labels_, cmap='viridis', s=50)
+                plt.xlabel("DiabetesPedigreeFunction")
+                plt.ylabel("Age")
+                plt.grid(True)
+
+                centroids = kmeans.cluster_centers_
+                plt.scatter(centroids[:, 4], centroids[:, 5], c='red', s=200, alpha=0.75, marker='X', label='Centroids')
+            
+            plt.title("K-Means clustering")
+            plt.savefig("KA/k_means.jpg", dpi=300, bbox_inches='tight') 
             plt.show()
-
-            print('Centroids ', centroids[:,4])
+            #print('Centroids ', centroids[:,4])
 
             return kmeans
         
@@ -147,6 +168,165 @@ class ClasterAnalysis:
             plt.show()
             
             # прац з еліпсоїдними кластерами (відповідає GK)
+
+        elif self.method == "edge_cut":
+            G_copy = self.G.copy()
+            while nx.number_connected_components(G_copy) < n_clusters:
+                edge_bet = nx.edge_betweenness_centrality(G_copy) # Розрах центральності ребер
+                edge_to_remove = max(edge_bet, key=edge_bet.get) # Шук ребро з найб центральністю
+                G_copy.remove_edge(*edge_to_remove)
+
+            self.clusters = [list(c) for c in nx.connected_components(G_copy)]
+            self.G_new=G_copy
+
+        elif self.method == "girvan_newman":
+            G_copy = self.G.copy()
+            communities_generator = girvan_newman(self.G)   # Генератор розбиттів
+            self.clusters = next(communities_generator)
+            self.clusters = [list(c) for c in self.clusters]
+            edges_to_remove = []
+            for u, v in G_copy.edges():
+                for cluster in self.clusters:
+                    if (u in cluster) and (v not in cluster):
+                        edges_to_remove.append((u, v))
+                        break
+
+            G_copy.remove_edges_from(edges_to_remove)
+            self.G_new=G_copy
+
+        elif self.method == "markov_alg":
+            matrix = csr_matrix(nx.to_scipy_sparse_array(self.G, dtype=float)) # розріджену матрицю суміжності
+            result = mc.run_mcl(matrix, inflation=2)
+
+            self.clusters = mc.get_clusters(result)
+            self.clusters = [list(cluster) for cluster in self.clusters]
+
+            G_copy = self.G.copy()
+            edges_to_remove = []
+            for u, v in G_copy.edges():
+                for cluster in self.clusters:
+                    if (u in cluster) and (v not in cluster):
+                        edges_to_remove.append((u, v))
+                        break
+            G_copy.remove_edges_from(edges_to_remove)
+
+            self.G_new=G_copy
+        
+        elif self.method == "pagerank_alg":
+            threshold=0.03
+            pr = nx.pagerank(self.G)
+            
+            high_nodes = [n for n, v in pr.items() if v >= threshold]
+            low_nodes = [n for n, v in pr.items() if v < threshold]
+            
+            self.clusters = [high_nodes, low_nodes]
+            
+            G_copy = self.G.copy()
+            edges_to_remove = []
+            for u, v in G_copy.edges():
+                if (u in high_nodes and v in low_nodes) or (v in high_nodes and u in low_nodes):
+                    edges_to_remove.append((u, v))
+            G_copy.remove_edges_from(edges_to_remove)
+            
+            self.G_new=G_copy
+
+
+    def _graph_characteristics(self):
+        self.compat_matrix=nx.to_scipy_sparse_array(self.G, dtype=float)
+
+        if self.compat_matrix.shape[0] != self.compat_matrix.shape[1]:
+            raise ValueError("Input matrix must be square.")
+        if (self.compat_matrix.toarray() < 0).any():
+            raise ValueError("All elements of the input matrix must be non-negative.")
+
+        row_sums = self.compat_matrix.sum(axis=1)
+        row_sums[row_sums == 0] = 1
+        self.stochastic_matrix = self.compat_matrix / row_sums
+
+    def _optimal_clusters_number(self):
+        N = self.stochastic_matrix.shape[0]
+        h=2
+        eigvals = eigs(self.stochastic_matrix, k=min(50, N-2), sigma=1.0, return_eigenvectors=False) # власні значення
+
+        radius = h / np.sqrt(N)
+        k_opt = np.sum(np.abs(eigvals - 1) < radius)
+        print('k_opt ', k_opt)
+
+        plt.figure(figsize=(6,6))
+        plt.gca().add_patch(plt.Circle((0,0), 1, color='gray', alpha=0.3))
+        plt.gca().add_patch(plt.Circle((1,0), radius, color='skyblue', alpha=0.5))
+        plt.scatter(eigvals.real, eigvals.imag, color='red')
+        plt.axhline(0, color='k', lw=0.5); plt.axvline(0, color='k', lw=0.5)
+        plt.gca().set_aspect('equal', adjustable='box')
+        plt.title(f'Eigenvalues of a matrix P. k_opt={k_opt}')
+        plt.xlabel('Re(λ)'); plt.ylabel('Im(λ)')
+        plt.savefig("KA/opt_clust_numb.jpg", dpi=300, bbox_inches='tight') 
+        plt.show()
+
+        self.k_opt, self.eigvals=k_opt, eigvals
+        
+    def graph_create(self,K, N, a1, b1, a2, b2):
+        nodes = N // K
+        self.G = nx.Graph()
+        rng = np.random.default_rng()
+        self.G.add_nodes_from(range(N))
+
+        # ств зв’язків
+        for i in range(N):
+            for j in range(i + 1, N):
+                ci = i // nodes
+                cj = j // nodes
+
+                if ci == cj:
+                    p = rng.uniform(a2, b2)
+                else:
+                    p = rng.uniform(a1, b1)
+
+                if rng.random() < p:
+                    self.G.add_edge(i, j)
+
+        self.method='markov_alg'
+        self._clustering_procedure(K)
+        
+    def metrix_graph(self):
+        comps = [self.G_new.subgraph(c).copy() for c in nx.connected_components(self.G_new)]
+        for i, comp in enumerate(comps):
+                print(f"Comp {i+1}   {comp.number_of_nodes()} nodes    |    {comp.number_of_edges()} edges")
+
+        grade_num = len(comps)
+        print('Grade clust numb ', grade_num)
+
+        if nx.is_connected(self.G):
+            r = nx.radius(self.G)
+            d = nx.diameter(self.G)
+
+        diameters = []
+        for i, c in enumerate(comps, 1):
+            diameters.append(nx.diameter(c))
+            print(f"Comp {i}    d - {nx.diameter(c) if len(c)>1 else 0}")
+
+        max_diam = max(diameters) if diameters else 0
+        print('Max d subgraph', max_diam)
+
+        metrics = {
+            'GN': grade_num,
+            'R': r,
+            'D': d,
+            'Max D': max_diam
+        }
+
+        return metrics
+
+    def plot(self):
+        fig, axes = plt.subplots(1, 2, figsize=(12, 6))
+        pos = nx.spring_layout(self.G, seed=42)
+
+        nx.draw(self.G, pos, with_labels=True, ax=axes[0])
+        axes[0].set_title("Initial graph")
+
+        nx.draw(self.G_new, pos, with_labels=True, ax=axes[1])
+        axes[1].set_title(self.method)
+        plt.show()
 
     def elbow_method(self):
         wcss = []
@@ -304,7 +484,7 @@ class ClasterAnalysis:
         return metrics
         
 class Mlflow_validator:
-    def __init__(self, method, df, k_opt=0, hopk=0, metrics={'Metrix':0}):
+    def __init__(self, name,method, df, k_opt=0, hopk=0, metrics={'metrics':0}):
         self.client=None
         self.method=method
         self.df=df
@@ -314,32 +494,55 @@ class Mlflow_validator:
 
         self.run_id=None
         #self.experiment=None
+        self.numb=0
+        self.name=name
         
         self.url="http://127.0.0.1:8080"
 
+    def __init__(self,name, method, K,N,metrics):
+        self.client=None
+        self.method=method
+        self.N=N
+        
+        self.K=K
+        self.metrics=metrics
+        
+        self.run_id=None
+        #self.experiment=None
+        self.numb=1
+        self.name=name
+
+        self.url="http://127.0.0.1:8080"
+        
     def _initialization_mlflow(self):        
         mlflow.set_tracking_uri(self.url)
         mlflow.set_experiment("MLflow Quickstart")
-        self.run_id = mlflow.start_run(run_name=self.method).info.run_id
+        self.run_id = mlflow.start_run(run_name=self.name).info.run_id
 
-        self._log_artifacts()
-        self._download_artifact()
+        self._log_artifacts(self.numb)
+        #self._download_artifact()
         self.end_run()
 
-    def _log_artifacts(self):
+    def _log_artifacts(self, numb):
         start_time = time.strftime("%Y-%m-%d %H:%M:%S")
         mlflow.log_param("start_time", start_time)
         mlflow.log_param("method", self.method)
-        
-        numb_obj, columns = self.df.shape
-        mlflow.log_param("numb_obj", numb_obj)
-        mlflow.log_param("columns", columns)
-        mlflow.log_param("k_opt", self.k_opt)
+
+        if numb==0:
+            numb_obj, columns = self.df.shape
+            mlflow.log_param("numb_obj", numb_obj)
+            mlflow.log_param("columns", columns)
+            mlflow.log_param("k_opt", self.k_opt)
+        else:
+            mlflow.log_param("Nodes", self.N)
+            mlflow.log_param("Clusters", self.K)
 
         for key in self.metrics:
             mlflow.log_metric(key,self.metrics.get(key))
 
-        mlflow.log_artifact("ML/pima.csv",artifact_path="dataframe")
+        if numb==0:
+            mlflow.log_artifact("ML/pima.csv",artifact_path="dataframe")
+        
         files=glob.glob("KA/*.jpg")
         for file in files:
             mlflow.log_artifact(file,artifact_path="features")
@@ -356,7 +559,7 @@ class Mlflow_validator:
 def main():
     # mlflow server --host 127.0.0.1 --port 8080 
     
-    df = pd.read_csv("ML/pima.csv")  
+    '''df = pd.read_csv("ML/pima.csv")  
     df = df.apply(lambda col: col.fillna(round(col.mean(),3)))
 
     X = df 
@@ -383,11 +586,92 @@ def main():
     metrics = ca._metric_calculation()
     print('Metrics ', metrics)
 
-    mlf=Mlflow_validator(method,df,k_optim,hopk,metrics)
+    name='ca'
+    mlf=Mlflow_validator(name,method,df,k_optim,hopk,metrics)
+    mlf._initialization_mlflow()'''
+
+    #pagerank_scores = nx.pagerank(G, alpha=0.85)
+    #print(pagerank_scores)
+
+    G = nx.karate_club_graph()     
+    #method ='edge_cut'
+    #method ='girvan_newman'
+    method ='markov_alg'
+    #method ='pagerank_alg'
+    
+
+    ca = ClasterAnalysis(G, n_clusters=3, method=method)
+    ca._graph_characteristics()
+    
+    #print('Stochastic matrix ',ca.stochastic_matrix)
+    #print('Compatibility matrix ',ca.compat_matrix)
+
+    ca._optimal_clusters_number()
+
+    ca._clustering_procedure()
+    for i, c in enumerate(ca.clusters, 1):
+        print(f"Cluster {i}: {c}")
+    ca.plot()
+    ca.method='k_means'
+
+    pos = nx.spring_layout(ca.G_new, seed=42)
+    ca.data= np.array([pos[node] for node in ca.G_new.nodes()])
+    ca._clustering_procedure(ca.k_opt)
+    metrics = ca.metrix_graph()
+    
+    name='ca'
+    mlf=Mlflow_validator(name,method,ca.G.number_of_nodes(),ca.k_opt,metrics)
     mlf._initialization_mlflow()
     
-
-
+    #   
+    print('\n\nCa1')
+    K = 3
+    N=1000
+    a1, b1 = 0, 0.3   # між кластерами (слабкі зв’язки)
+    a2, b2 = 0.7, 1.0 # всередині (сильні)
     
+    ca1=ClasterAnalysis(n_clusters=K)
+    ca1.graph_create(K, N, a1, b1, a2, b2)
+    metrics= ca1.metrix_graph()
+    name='ca1'
+    mlf=Mlflow_validator(name,method,N,K,metrics)
+    mlf._initialization_mlflow()
+
+    #
+    print('\n\nCa2')
+    K=10
+    a1, b1 = 0, 1
+    a2, b2 = 0, 10
+    ca2=ClasterAnalysis(n_clusters=K)
+    ca2.graph_create(K, N, a1, b1, a2, b2)
+    metrics=ca2.metrix_graph()
+    name='ca2'
+    mlf=Mlflow_validator(name,method,N,K,metrics)
+    mlf._initialization_mlflow()
+
+
+    print('\n\nCa3')
+    K=10
+    a1, b1 = 0, 1
+    a2, b2 = 0, 2
+    ca3=ClasterAnalysis(n_clusters=K)
+    ca3.graph_create(K, N, a1, b1, a2, b2)
+    metrics=ca3.metrix_graph()
+    name='ca3'
+    mlf=Mlflow_validator(name,method,N,K,metrics)
+    mlf._initialization_mlflow()
+
+
+    print('\n\nCa4')
+    K=100
+    a1, b1 = 0, 1
+    a2, b2 = 0, 2
+    ca4=ClasterAnalysis(n_clusters=K)
+    ca4.graph_create(K, N, a1, b1, a2, b2)
+    metrics=ca4.metrix_graph()
+    name='ca4'
+    mlf=Mlflow_validator(name,method,N,K,metrics)
+    mlf._initialization_mlflow()
+
 
 main()
