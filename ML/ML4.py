@@ -65,7 +65,24 @@ def task2():
     X = df.drop(['y', 'loan', 'day', 'month','poutcome', 'contact'], axis=1)
     y = df["y"]
 
-    print(X.head(5))
+    selector = SelectKBest(score_func=f_classif, k='all')
+    selector.fit(X, y)
+    threshold = 10
+
+    scores = pd.DataFrame({
+        'feature': X.columns,
+        'score': selector.scores_
+    }).sort_values(by='score')    
+
+    to_drop = scores[scores['score'] < threshold]['feature']
+    
+    print('\nscores ', scores)
+    print('to_drop',to_drop)
+    
+    for i in to_drop:
+        X = X.drop(i, axis=1)
+
+    print('\n', X.head(5))
 
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
     scaler = MinMaxScaler()
@@ -77,7 +94,7 @@ def task2():
     y_pred = lg.predict(X_test_scaled)
     accuracy = accuracy_score(y_test, y_pred)
     
-    print('\n\nAccuracy ', accuracy)
+    print('\nAccuracy ', accuracy)
     print("MSE :", mean_squared_error(y_test, y_pred))
 
     #print('X ', X.head())
