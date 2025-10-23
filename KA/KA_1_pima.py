@@ -173,7 +173,7 @@ class ClasterAnalysis:
             G_copy = self.G.copy()
             while nx.number_connected_components(G_copy) < n_clusters:
                 edge_bet = nx.edge_betweenness_centrality(G_copy) # Розрах центральності ребер
-                edge_to_remove = max(edge_bet, key=edge_bet.get) # Шук ребро з найб центральністю
+                edge_to_remove = max(edge_bet, key=edge_bet.get)
                 G_copy.remove_edge(*edge_to_remove)
 
             self.clusters = [list(c) for c in nx.connected_components(G_copy)]
@@ -196,7 +196,7 @@ class ClasterAnalysis:
 
         elif self.method == "markov_alg":
             matrix = csr_matrix(nx.to_scipy_sparse_array(self.G, dtype=float)) # розріджену матрицю суміжності
-            result = mc.run_mcl(matrix, inflation=2)
+            result = mc.run_mcl(matrix, expansion=2, inflation=2)
 
             self.clusters = mc.get_clusters(result)
             self.clusters = [list(cluster) for cluster in self.clusters]
