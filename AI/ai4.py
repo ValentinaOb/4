@@ -1,3 +1,4 @@
+import math
 import os
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -24,6 +25,8 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score
 from sklearn.metrics import classification_report
 from sklearn.neighbors import KNeighborsClassifier
+from scipy.stats import norm
+from collections import OrderedDict
 
 
 ABO=[]
@@ -41,26 +44,19 @@ V=[]
 y_test=[]
 
 centers=[]
+r=0
+x0=0
+group,group1=None,None
 
 def upload_image_for_learn():
-    global image_learn
+    global image_learn,group,group1
     image_learn=[]
     #file_path = filedialog.askopenfilenames(filetypes=[("Image Files", "*.bmp;")])
     file_path =['C:/Users/user/Downloads/5.bmp', 'C:/Users/user/Downloads/5_1.bmp', 'C:/Users/user/Downloads/5_2.bmp',
-                 'C:/Users/user/Downloads/7.bmp', 'C:/Users/user/Downloads/7_1.bmp', 'C:/Users/user/Downloads/7_2.bmp',
-                 'C:/Users/user/Downloads/1.bmp', 'C:/Users/user/Downloads/1_2.bmp', 'C:/Users/user/Downloads/1_3.bmp']
+                 'C:/Users/user/Downloads/7.bmp', 'C:/Users/user/Downloads/7_1.bmp', 'C:/Users/user/Downloads/7_2.bmp']
     k=0
-    #print('f ',file_path)
-    '''for i in file_path:
-        image_learn.append(rgb2gray(io.imread(i)))
-        if k==numb_instance:
-            image_learn_name.append(os.path.basename(i).replace('.bmp',''))
-            k=0
-        k+=1'''
-
     for i in file_path:
         image_learn.append(rgb2gray(io.imread(i)))
-        #print(file_path.index(i),os.path.basename(i).replace('.bmp',''))
         if k==0:
             image_learn_name.append(os.path.basename(i).replace('.bmp',''))
         elif k==n-1:
@@ -69,14 +65,15 @@ def upload_image_for_learn():
 
     update_canvas(image_learn,1)
 
-    #       !!!!
+    #
     upload_image_for_check()
     segmentation()
     count_black_dots()
-    learning()
+    
     find_x()
-
-
+    learning(group,group1)
+    x0=img_check()
+    predict(x0)
 
 def upload_image_for_check():
     global image
@@ -159,8 +156,6 @@ def count_black_dots():
         if ran==3:
             name+=1
             ran=0
-        #print('\n\nabs ',ABO)
-        #print('\n\nnorms ',NBO)
         numb+=1
         
     update_tables()
@@ -190,53 +185,12 @@ def update_tables():
         data = ' | '.join(map(str, i[1]))
         fields_gr['table_ABO'].insert("", "end", values=(i[0], data))
 
-
     for item in fields_gr['table_NBO'].get_children():
         fields_gr['table_NBO'].delete(item)
     for i in NBO:
         data = ' | '.join(map(str, i[1]))
         fields_gr['table_NBO'].insert("", "end", values=(i[0], data))
-
-def learning():
-    global threshold,image,image_learn, k,kmeans, centers
-    X = []
-    y = set(row[0] for row in ABO)
-    
-    for label in y:
-        filtered = [row[1] for row in ABO if row[0] == label]
-        center = [round(sum(x)/len(x), 2) for x in zip(*filtered)]
-        centers.append([label, center])
-
-    print('\nCenter ',centers)
-
-    '''for label in np.unique(y):
-        class_vectors = (lambda: ABO[,0] == label, ABO[1])
-        for j in class_vectors:
-            center.append(np.mean(class_vectors[j,j], axis=0))
-            centers.append(center)'''
-    '''    for j in i[1]:
-            X.append([j])
-            y.append(i[0])
-    kmeans = KMeans(n_clusters=len(image_learn), random_state=42)
-    X=np.array(X)
-    y=np.array(y)
-    
-    # мат сподівання
-    centers = []
-    for label in np.unique(y):
-        class_vectors = X[y == label]
-        center = np.mean(class_vectors, axis=0)
-        centers.append(center)
-    
-    print('\nCV ',class_vectors)
-
-    X= []
-    y= np.unique(y).tolist()
-    for i in centers:
-        X.append(i)
-    print('\n\nX ',X)
-    kmeans.fit(X,y)'''
-    
+   
     result_label['text'] = "Teach"
 
 def img_check():
@@ -253,48 +207,58 @@ def img_check():
         mask = segments == i
         black_pixels.append(np.sum(image[mask] < threshold)) 
 
-    center_bl=[]
-    for j in black_pixels:
-        center_bl.append(j/max(black_pixels))
-    center = np.mean(center_bl, axis=0)
-    value = np.array(center).reshape(1, -1)
-    y=np.array(y)
-    
-    print('\n\n\nc ',center,'\n')
-    for i in centers:
-        print('i-c ',knn.classes_[centers.index(i)],'|', i-center)  
-
-    mapping = {old: new for old, new in zip(knn.classes_, y)}
-    prediction = knn.predict(value)
-    result = [mapping[label] for label in prediction]
-    result_label.config(text = f"Classified as {result}")
-   
-    y_pred=[]
-    for i in V:
-        y_pred.append(knn.predict(np.array(i).reshape(1, -1)))
-    print('\n\ny1_pred ',y_pred,type(y_pred))
-    print("Accuracy:", accuracy_score(y_test, y_pred))
+    return black_pixels
 
 def find_x():
-    x=[]
-    t=6
-    for i in centers:
-        j = i[1]
-        x.append(round(j[0]+(j[2]-j[1])*t,2))
-    print('X ',x)
+    global ABO,group,group1,n
+    y = list(OrderedDict.fromkeys(row[0] for row in ABO))
+    group, group1=[],[]
+    for label in y:
+        filtered = [row[1] for row in ABO if row[0] == label]
+        if y.index(label)==0:
+            group.append(filtered)
+        else:
+            group1.append(filtered)
 
-    sum=0
-    k=0
-    d=1
-    for i in centers:
-        j = i[1]
-        sum+=(j[2]-j[1])*x[k] +d
-        k+=1
-    print('...+d <= 0 ',sum<=0, sum)
+    M1 = np.mean(group, axis=0)
+    M2 = np.mean(group1, axis=0)
+    #S1 = np.std(group, axis=0, ddof=1)
+    #S2 = np.std(group1, axis=0, ddof=1)
 
-    #a, x0, r0, Learn & img_check
+    print("\nM1 ", M1)
+    print("M2 ", M2)
 
+    x0 = (M1 + M2) / 2
+    print("\nX0", x0)
 
+    x_new=img_check()
+
+    decision = np.where(x_new < x0, y[0], y[1])
+
+    group_votes = np.sum(x_new < x0)
+    group1_votes = n - group_votes
+
+    predicted_group = y[0] if group_votes > group1_votes else y[1]
+
+    print("\nNew object ", x_new)
+    print("Decitions ", decision)
+    print('Res ', predicted_group)
+    result_label.config(text = f"Classified as {predicted_group}")
+
+def learning(group, group1):
+    global x0
+    M1 = np.mean(group, axis=0)
+    M2 = np.mean(group1, axis=0)
+    x0 = (M1 + M2) / 2
+
+def predict(x_new):
+    global x0
+    y = list(OrderedDict.fromkeys(row[0] for row in ABO))
+    group_votes = np.sum(x_new < x0)
+    group1_votes = len(x_new) - group_votes
+    result=y[0] if group_votes > group1_votes else y[1]
+    print('Res ', result)
+    result_label.config(text = f"Classified as {result}")
 
 fields={}
 fields_gr={}
