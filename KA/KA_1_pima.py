@@ -1,5 +1,6 @@
 import glob
 import math
+import random
 from matplotlib import cm
 import mlflow
 import numpy as np
@@ -24,6 +25,9 @@ from scipy.sparse import csr_matrix
 from scipy.sparse import issparse
 from scipy.sparse.linalg import eigs
 import matplotlib as mpl
+from sklearn.metrics import pairwise_distances_argmin
+from sklearn.cluster import KMeans, AgglomerativeClustering, Birch, DBSCAN
+from sklearn.metrics import pairwise_distances_argmin
 
 class ClasterAnalysis:
 
@@ -42,11 +46,12 @@ class ClasterAnalysis:
         self.k_opt = None
         self.hopkins = None
         self.labels_ = None
+        self.numb_of_chunks=None
         #self.centers_ = None
         #self.inertia_ = None  # сумарна WCSS (для kmeans) або обчислена для інших методів
         #self._gap_results = None
 
-    def __init__(self, G=None, n_clusters=None, method="edge_cut"):
+    '''def __init__(self, G=None, n_clusters=None, method="edge_cut"):
         self.G = G
         self.n_clusters=n_clusters
         self.method=method
@@ -58,7 +63,7 @@ class ClasterAnalysis:
         self.eigvals=None
         self.A=None
         self.labels=[]
-
+    '''
     def _clustering_procedure(self, n_clusters=None):
         if n_clusters is None:
             n_clusters = self.n_clusters
@@ -230,7 +235,105 @@ class ClasterAnalysis:
             
             self.G_new=G_copy
 
+        elif self.method == "based_on_repr":
+            N = len(self.data)
+            alpha=0.2
+            
+            n_repr = int(alpha * N)
+            repr_idx = np.random.choice(N, n_repr, replace=False)
+            data_repr = self.data[repr_idx]
+            
+            kmeans = KMeans(n_clusters=n_clusters, random_state=42)
+            kmeans.fit(data_repr)
+            
+            labels = pairwise_distances_argmin(self.data, kmeans.cluster_centers_)
 
+            plt.figure(figsize=(8, 6))    
+            plt.scatter(self.data[:, 4], self.data[:, 5], c=labels, s=25, cmap='tab10', alpha=0.6, label="Objects")
+            plt.scatter(self.data[repr_idx, 4], self.data[repr_idx, 5], 
+                        c='grey', s=60, edgecolors='white', marker='o', label='Representatives')
+            plt.scatter(kmeans.cluster_centers_[:, 4], kmeans.cluster_centers_[:, 5],
+                        c='red', s=100, marker='X', edgecolors='black', label='Centers')
+            
+            plt.title("Based on Representatives")
+            plt.legend()
+            plt.grid(alpha=0.3)
+            plt.show()
+            
+        elif self.method == "bfr":
+            N = len(self.data)
+        
+        elif self.method == "cure":
+            N = len(self.data)
+            alpha=0.2
+            
+            n_repr = int(alpha * N)
+            repr_idx = np.random.choice(N, n_repr, replace=False)
+            data_repr = self.data[repr_idx]
+
+            model = AgglomerativeClustering(n_clusters=n_clusters, linkage='average')
+            labels_repr = model.fit_predict(data_repr)
+            centers = np.array([data_repr[labels_repr == i].mean(axis=0) for i in range(n_clusters)])
+            labels = pairwise_distances_argmin(self.data, centers)
+  
+            plt.scatter(self.data[:, 4], self.data[:, 5], c=labels, s=25, cmap='tab10', alpha=0.6, label="Objects")
+            plt.scatter(self.data[repr_idx, 4], self.data[repr_idx, 5], 
+                        c='grey', s=60, edgecolors='white', marker='o', label='Representatives')
+            plt.scatter(centers[:, 4], centers[:, 5],
+                        c='red', s=100, marker='X', edgecolors='black', label='Centers')
+            
+            plt.title("CURE")
+            plt.legend()
+            plt.grid(alpha=0.3)
+            plt.show()
+
+        elif self.method == "birch":
+            N = len(self.data)
+            alpha=0.2
+            
+            n_repr = int(alpha * N)
+            repr_idx = np.random.choice(N, n_repr, replace=False)
+            data_repr = self.data[repr_idx]
+
+            model = Birch(n_clusters=n_clusters, threshold=0.5)
+            labels = model.fit_predict(self.data)
+
+            plt.figure(figsize=(8, 6))    
+            plt.scatter(self.data[:, 4], self.data[:, 5], c=labels, s=25, cmap='tab10', alpha=0.6, label="Objects")
+            plt.scatter(self.data[repr_idx, 4], self.data[repr_idx, 5], c='grey', s=60, edgecolors='white', marker='o', label='Representatives')
+            
+            plt.title("Birch")
+            plt.legend()
+            plt.grid(alpha=0.3)
+            plt.show()
+
+        elif self.method == "dbscan":
+            scale_data = MinMaxScaler().fit_transform(self.data)
+
+            dbscan = DBSCAN(eps=0.8, min_samples=5)
+            labels = dbscan.fit_predict(scale_data)
+
+            unique_labels = set(labels)
+            n_clusters = len([l for l in unique_labels if l != -1])
+
+            plt.figure(figsize=(8, 6))
+            colors = plt.cm.get_cmap('tab10', n_clusters)
+            for k in unique_labels:
+                if k == -1:
+                    col = 'lightgray'
+                    label = 'Noise'
+                else:
+                    col = colors(k)
+                    label = f'Cluster {k}'
+                
+                mask = (labels == k)
+                plt.scatter(scale_data[mask, 4], scale_data[mask, 5], c=[col], s=30,alpha=0.7, label=label)
+
+            plt.title("DBSCAN")
+            plt.legend()
+            plt.grid(alpha=0.3)
+            plt.show()
+            
     def _graph_characteristics(self):
         self.compat_matrix=nx.to_scipy_sparse_array(self.G, dtype=float)
 
@@ -483,6 +586,12 @@ class ClasterAnalysis:
         }
         return metrics
         
+    def split_into_chunks(self, size):
+        for i in range(0, len(self.data), size):
+            chunks=self.data[i:i + size]
+            print('Chunks ', chunks, '\n numb ', len(chunks))
+        self.numb_of_chunks=len(chunks)            
+
 class Mlflow_validator:
     def __init__(self, name,method, df, k_opt=0, hopk=0, metrics={'metrics':0}):
         self.client=None
@@ -513,7 +622,23 @@ class Mlflow_validator:
         self.name=name
 
         self.url="http://127.0.0.1:8080"
+    
+    def __init__(self, name,method, df, k_opt=0, hopk=0, chunks=0, metrics={'metrics':0}):
+        self.client=None
+        self.method=method
+        self.df=df
+        self.k_opt=k_opt
+        self.hopk=hopk
+        self.metrics=metrics
+        self.chunks=chunks
+
+        self.run_id=None
+        #self.experiment=None
+        self.numb=0
+        self.name=name
         
+        self.url="http://127.0.0.1:8080"
+   
     def _initialization_mlflow(self):        
         mlflow.set_tracking_uri(self.url)
         mlflow.set_experiment("MLflow Quickstart")
@@ -542,6 +667,9 @@ class Mlflow_validator:
 
         if numb==0:
             mlflow.log_artifact("ML/pima.csv",artifact_path="dataframe")
+            mlflow.log_param("Hopkins", self.hopk)
+            mlflow.log_param("Hopkins", self.numb)
+
         
         files=glob.glob("KA/*.jpg")
         for file in files:
@@ -559,7 +687,7 @@ class Mlflow_validator:
 def main():
     # mlflow server --host 127.0.0.1 --port 8080 
     
-    '''df = pd.read_csv("ML/pima.csv")  
+    df = pd.read_csv("ML/pima.csv")  
     df = df.apply(lambda col: col.fillna(round(col.mean(),3)))
 
     X = df 
@@ -567,15 +695,32 @@ def main():
 
     #method="k_means"
     #method="nearest_neighbour"
-    method="c_means"
+    #method="c_means"
     #method="gath_geva"
     #method="gustafson_kessel"
 
-    ca = ClasterAnalysis(X, y, n_clusters=2, method=method)
+    #method="based_on_repr"
+    method="bfr"
+    #method="cure"
+    #method="birch"
+    method="dbscan"
+
+    ca = ClasterAnalysis(X, y, n_clusters=3, method=method)
+    ca.split_into_chunks(5)
+
     ca._clustering_procedure()
+    hopk=ca.hopkins_statistic()
+    print('Hopkins ', hopk)
+    metrics = ca._metric_calculation()
+    print('Metrics ', metrics)
+    
+    mlf=Mlflow_validator(method,df,ca.k_opt,hopk, ca.numb_of_chunks, metrics)
+    mlf._initialization_mlflow()
+
+
     #k_optim=ca.elbow_method()
     #k_optim=ca.silhouette_method()
-    k_optim=ca.gap_statistic()
+    '''k_optim=ca.gap_statistic()
 
     print('k_opt ',k_optim)
 
@@ -593,20 +738,22 @@ def main():
     #pagerank_scores = nx.pagerank(G, alpha=0.85)
     #print(pagerank_scores)
 
-    G = nx.karate_club_graph()     
+    '''   ! Graph'''
+    
+    #G = nx.karate_club_graph()     
     #method ='edge_cut'
     #method ='girvan_newman'
-    method ='markov_alg'
+    #method ='markov_alg'
     #method ='pagerank_alg'
     
 
-    ca = ClasterAnalysis(G, n_clusters=3, method=method)
-    ca._graph_characteristics()
+    #ca = ClasterAnalysis(G, n_clusters=3, method=method)
+    #ca._graph_characteristics()
     
     #print('Stochastic matrix ',ca.stochastic_matrix)
     #print('Compatibility matrix ',ca.compat_matrix)
 
-    ca._optimal_clusters_number()
+    '''ca._optimal_clusters_number()
 
     ca._clustering_procedure()
     for i, c in enumerate(ca.clusters, 1):
@@ -672,6 +819,6 @@ def main():
     name='ca4'
     mlf=Mlflow_validator(name,method,N,K,metrics)
     mlf._initialization_mlflow()
-
+    '''
 
 main()
