@@ -31,7 +31,7 @@ from sklearn.metrics import pairwise_distances_argmin
 
 class ClasterAnalysis:
 
-    def __init__(self, data, data_y, n_clusters=None, method="k_means", random_state=42):
+    def __init__(self, data, data_y, n_clusters=None, method="k_means",use=1, random_state=42):
         if isinstance(data, pd.DataFrame):
             data = data.select_dtypes(include=[np.number]).values
         else:
@@ -47,6 +47,7 @@ class ClasterAnalysis:
         self.hopkins = None
         self.labels_ = None
         self.numb_of_chunks=None
+        self.use=use
         #self.centers_ = None
         #self.inertia_ = None  # сумарна WCSS (для kmeans) або обчислена для інших методів
         #self._gap_results = None
@@ -258,10 +259,114 @@ class ClasterAnalysis:
             plt.title("Based on Representatives")
             plt.legend()
             plt.grid(alpha=0.3)
+            plt.savefig("KA/based_on_repr.jpg", dpi=300, bbox_inches='tight') 
             plt.show()
-            
+
         elif self.method == "bfr":
-            N = len(self.data)
+            kmeans = KMeans(n_clusters=self.n_clusters, random_state=42)
+            labels_kmeans = kmeans.fit_predict(self.data)
+
+            final_labels = labels_kmeans.copy()
+
+            M_list = []
+            D_list = []
+            for i in range(self.n_clusters):
+                pts_idx = np.where(labels_kmeans == i)[0]
+                cluster_points = self.data[pts_idx]
+                M = np.mean(cluster_points, axis=0)
+                D = np.var(cluster_points, axis=0, ddof=1)
+                M_list.append(M)
+                D_list.append(D)
+
+            t = 12
+            m = 2
+            use = 1
+
+            other_idx = []
+
+            for idx in range(len(self.data)):
+                x = self.data[idx]
+                assigned = False
+
+                for i in range(self.n_clusters):
+                    M = M_list[i]
+                    D = D_list[i]
+
+                    if use == 1:
+                        d = np.sqrt(np.sum(((x - M) / np.sqrt(D)) ** 2))
+                        if d <= t:
+                            final_labels[idx] = i
+                            M_new = (M + x) / 2.0
+                            D_new = (D + (x - M) ** 2) / 2.0
+                            M_list[i] = M_new
+                            D_list[i] = D_new
+                            assigned = True
+                            break
+                    else:
+                        lower = M - m * np.sqrt(D)
+                        upper = M + m * np.sqrt(D)
+                        if np.all((x >= lower) & (x <= upper)):
+                            final_labels[idx] = i
+                            M_new = (M + x) / 2.0
+                            D_new = (D + (x - M) ** 2) / 2.0
+                            M_list[i] = M_new
+                            D_list[i] = D_new
+                            assigned = True
+                            break
+
+                if not assigned:
+                    final_labels[idx] = -1
+                    other_idx.append(idx)
+
+            if len(other_idx) > 0:
+                remaining = []
+                for idx in other_idx:
+                    x = self.data[idx]
+                    assigned = False
+                    for i in range(self.n_clusters):
+                        M = M_list[i]
+                        D = D_list[i]
+                        d = np.sqrt(np.sum(((x - M) / np.sqrt(D)) ** 2))
+                        if d <= t:
+                            final_labels[idx] = i
+                            M_new = (M + x) / 2.0
+                            D_new = (D + (x - M) ** 2) / 2.0
+                            M_list[i] = M_new
+                            D_list[i] = D_new
+                            assigned = True
+                            break
+                    if not assigned:
+                        remaining.append(idx)
+
+            for i in range(self.n_clusters):
+                pts_idx = np.where(final_labels == i)[0]
+                print('\nCl ',i+1, len(pts_idx))
+                print('\nM ', np.round(M_list[i][4:6], 3), '\nD ', np.round(D_list[i][4:6], 3))
+
+            unassigned_idx = np.where(final_labels == -1)[0]
+            print('\nUnassigned ', len(unassigned_idx))
+            if len(unassigned_idx) > 0:
+                print(unassigned_idx[:6])
+
+            colors = ['lightblue', 'lightgreen', 'salmon', 'yellow', 'orange', 'violet']
+            for i in range(self.n_clusters):
+                idxs = np.where(final_labels == i)[0]
+                if len(idxs) > 0:
+                    pts = self.data[idxs]
+                    plt.scatter(pts[:, 4], pts[:, 5], color=colors[i % len(colors)], label=f'Cl {i+1}', alpha=0.6)
+
+            if len(unassigned_idx) > 0:
+                plt.scatter(self.data[unassigned_idx, 4], self.data[unassigned_idx, 5], s=60, label='Unassigned')
+
+            for i in range(self.n_clusters):
+                plt.scatter(M_list[i][4], M_list[i][5], color='k', marker='x', s=100)
+
+            plt.title('BFR')
+            plt.xlabel('DiabetesPedigreeFunction')
+            plt.ylabel('Age')
+            plt.legend()
+            plt.savefig("KA/bfr.jpg", dpi=300, bbox_inches='tight') 
+            plt.show()
         
         elif self.method == "cure":
             N = len(self.data)
@@ -284,7 +389,7 @@ class ClasterAnalysis:
             
             plt.title("CURE")
             plt.legend()
-            plt.grid(alpha=0.3)
+            plt.savefig("KA/cure.jpg", dpi=300, bbox_inches='tight') 
             plt.show()
 
         elif self.method == "birch":
@@ -304,7 +409,7 @@ class ClasterAnalysis:
             
             plt.title("Birch")
             plt.legend()
-            plt.grid(alpha=0.3)
+            plt.savefig("KA/birch.jpg", dpi=300, bbox_inches='tight') 
             plt.show()
 
         elif self.method == "dbscan":
@@ -331,7 +436,7 @@ class ClasterAnalysis:
 
             plt.title("DBSCAN")
             plt.legend()
-            plt.grid(alpha=0.3)
+            plt.savefig("KA/dbscanjpg", dpi=300, bbox_inches='tight') 
             plt.show()
             
     def _graph_characteristics(self):
@@ -593,7 +698,7 @@ class ClasterAnalysis:
         self.numb_of_chunks=len(chunks)            
 
 class Mlflow_validator:
-    def __init__(self, name,method, df, k_opt=0, hopk=0, metrics={'metrics':0}):
+    '''def __init__(self, name,method, df, k_opt=0, hopk=0, metrics={'metrics':0}):
         self.client=None
         self.method=method
         self.df=df
@@ -607,8 +712,8 @@ class Mlflow_validator:
         self.name=name
         
         self.url="http://127.0.0.1:8080"
-
-    def __init__(self,name, method, K,N,metrics):
+    '''
+    ''' def __init__(self,name, method, K,N,metrics):
         self.client=None
         self.method=method
         self.N=N
@@ -622,7 +727,7 @@ class Mlflow_validator:
         self.name=name
 
         self.url="http://127.0.0.1:8080"
-    
+    '''
     def __init__(self, name,method, df, k_opt=0, hopk=0, chunks=0, metrics={'metrics':0}):
         self.client=None
         self.method=method
@@ -645,7 +750,7 @@ class Mlflow_validator:
         self.run_id = mlflow.start_run(run_name=self.name).info.run_id
 
         self._log_artifacts(self.numb)
-        #self._download_artifact()
+        self._download_artifact()
         self.end_run()
 
     def _log_artifacts(self, numb):
@@ -654,9 +759,9 @@ class Mlflow_validator:
         mlflow.log_param("method", self.method)
 
         if numb==0:
-            numb_obj, columns = self.df.shape
+            '''numb_obj, columns = self.df.shape
             mlflow.log_param("numb_obj", numb_obj)
-            mlflow.log_param("columns", columns)
+            mlflow.log_param("columns", columns)'''
             mlflow.log_param("k_opt", self.k_opt)
         else:
             mlflow.log_param("Nodes", self.N)
@@ -668,7 +773,7 @@ class Mlflow_validator:
         if numb==0:
             mlflow.log_artifact("ML/pima.csv",artifact_path="dataframe")
             mlflow.log_param("Hopkins", self.hopk)
-            mlflow.log_param("Hopkins", self.numb)
+            mlflow.log_param("Numb", self.numb)
 
         
         files=glob.glob("KA/*.jpg")
@@ -699,13 +804,13 @@ def main():
     #method="gath_geva"
     #method="gustafson_kessel"
 
-    #method="based_on_repr"
-    method="bfr"
+    method="based_on_repr"
+    #method="bfr"
     #method="cure"
     #method="birch"
-    method="dbscan"
+    #method="dbscan"
 
-    ca = ClasterAnalysis(X, y, n_clusters=3, method=method)
+    ca = ClasterAnalysis(X, y, n_clusters=3, method=method, use=1)
     ca.split_into_chunks(5)
 
     ca._clustering_procedure()
