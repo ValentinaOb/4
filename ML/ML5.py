@@ -1,30 +1,46 @@
 import numpy as np
 import pandas as pd
-from sklearn.metrics import accuracy_score
 from sklearn.metrics import mean_squared_error
 import matplotlib.pyplot as plt
 from sklearn.preprocessing import StandardScaler
-from sklearn.svm import SVC
-from sklearn.metrics import accuracy_score
-import matplotlib.pyplot as plt
 from sklearn.svm import SVC, SVR
 from sklearn.metrics import accuracy_score, mean_squared_error
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import GridSearchCV
+from sklearn.feature_selection import SelectKBest, f_classif
+from sklearn.linear_model import LogisticRegression
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import MinMaxScaler
 
-df = pd.read_csv("ML/svmdata1.csv")
-df_test = pd.read_csv("ML/svmdata1.csv")
-#df = pd.get_dummies(df, columns=['Color']) # One-hot       Not use for one()
-#df_test = pd.get_dummies(df_test, columns=['Color']) # One-hot
+X_train,y_train,X_test,y_test,X_train_s,X_test_s=None,None,None,None,None,None
 
-X_train = df.iloc[:, :-1].values
-y_train = df.iloc[:, -1].values
-X_test  = df_test.iloc[:, :-1].values
-y_test  = df_test.iloc[:, -1].values
+def data(n):
+    global X_train,y_train,X_test,y_test,X_train_s,X_test_s
+    if n == 1:    
+        df = pd.read_csv("ML/svmdata1.csv")
+        df_test = pd.read_csv("ML/svmdata1.csv")
+        #df = pd.get_dummies(df, columns=['Color']) # One-hot       Not use for one()
+        #df_test = pd.get_dummies(df_test, columns=['Color']) # One-hot
+    elif n == 2:    
+        df = pd.read_csv("ML/svmdata2.csv")
+        df_test = pd.read_csv("ML/svmdata2.csv")
+    elif n == 3:    
+        df = pd.read_csv("ML/svmdata3.csv")
+        df_test = pd.read_csv("ML/svmdata3.csv")
+    else:
+        df = pd.read_csv("ML/svmdata4.csv")
+        df_test = pd.read_csv("ML/svmdata4.csv")
+        df = pd.get_dummies(df, columns=['Colors']) # One-hot       Not use for one()
+        df_test = pd.get_dummies(df_test, columns=['Colors']) # One-hot
 
-scaler = StandardScaler().fit(np.vstack([X_train, X_test]))
-X_train_s = scaler.transform(X_train)
-X_test_s  = scaler.transform(X_test)
+    X_train = df.iloc[:, :-1].values
+    y_train = df.iloc[:, -1].values
+    X_test  = df_test.iloc[:, :-1].values
+    y_test  = df_test.iloc[:, -1].values
+
+    scaler = StandardScaler().fit(np.vstack([X_train, X_test]))
+    X_train_s = scaler.transform(X_train)
+    X_test_s  = scaler.transform(X_test)
 
 def plot_decision_boundary(clf, X, y, ax=None):
     x_min, x_max = X[:,0].min() - 1, X[:,0].max() + 1
@@ -50,6 +66,7 @@ def plot_decision_boundary(clf, X, y, ax=None):
     return ax
 
 def one():
+    global X_train,y_train,X_test,y_test,X_train_s,X_test_s
     svc1 = SVC(C=1.0, kernel='linear')
     svc1.fit(X_train_s, y_train)
 
@@ -67,6 +84,7 @@ def one():
     plt.show()
 
 def two():
+    global X_train,y_train,X_test,y_test,X_train_s,X_test_s
     C_values = np.logspace(0, 8, 10)
     results = []
     for C in C_values:
@@ -103,6 +121,7 @@ def two():
     plt.show()
 
 def three():
+    global X_train,y_train,X_test,y_test,X_train_s,X_test_s
     kernels = ["poly", "rbf", "sigmoid"]
     poly_degrees = [2,3,4,5]
     best_overall = {"kernel": None, "params": None, "test_err": 1.0}
@@ -149,6 +168,7 @@ def three():
     print("Accuracy ", accuracy)
 
 def four():
+    global X_train,y_train,X_test,y_test,X_train_s,X_test_s
     eps_values = np.linspace(0.0, 1.0, 21)
     mse_train = []
     for eps in eps_values:
@@ -169,4 +189,62 @@ def four():
     plt.grid(True)
     plt.show()
 
-two()
+def five():
+    df = pd.read_csv("ML/bank-additional-full.csv", sep=";")
+    df['y'] = (df['y'] == 'yes').astype(int)
+    df['job'] = (df['job'] != 'unemployed').astype(int)
+    df['marital'] = (df['marital'] == 'married').astype(int)
+
+    dummies = pd.get_dummies(df['education']).astype(int)
+    df = pd.concat([df.drop('education', axis=1), dummies], axis=1)
+    
+    df['default'] = (df['default'] == 'yes').astype(int)
+    df['housing'] = (df['housing'] == 'yes').astype(int)
+    
+    X = df.drop(['y', 'loan', 'day', 'month','poutcome', 'contact'], axis=1)
+    y = df["y"]
+
+    selector = SelectKBest(score_func=f_classif, k='all')
+    selector.fit(X, y)
+    threshold = 10
+
+    scores = pd.DataFrame({
+        'feature': X.columns,
+        'score': selector.scores_
+    }).sort_values(by='score')    
+
+    to_drop = scores[scores['score'] < threshold]['feature']
+    
+    print('\nscores ', scores)
+    print('to_drop',to_drop)
+    
+    for i in to_drop:
+        X = X.drop(i, axis=1)
+
+    print('\n', X.head(5))
+
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
+    scaler = MinMaxScaler()
+    X_train_scaled = scaler.fit_transform(X_train)
+    X_test_scaled = scaler.transform(X_test)
+    
+    lg=LogisticRegression()
+    lg.fit(X_train_scaled, y_train)
+    y_pred = lg.predict(X_test_scaled)
+    accuracy = accuracy_score(y_test, y_pred)
+    
+    print('\nLogisticRegression Accuracy ', accuracy)
+    print("MSE :", mean_squared_error(y_test, y_pred))
+
+    svc1 = SVC(C=1.0, kernel='linear')
+    svc1.fit(X_train_scaled, y_train)
+
+    n_sv = svc1.support_vectors_.shape[0]
+    print('\nNumb of support vectors ',n_sv)
+
+    y_test_pred  = svc1.predict(X_test_scaled)
+    test_acc  = accuracy_score(y_test, y_test_pred)
+    print('SVC Accuracy ', test_acc)
+
+data(1)
+one()
