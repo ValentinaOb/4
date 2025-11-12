@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+from scipy import stats
 from sklearn.metrics import mean_squared_error
 import matplotlib.pyplot as plt
 from sklearn.preprocessing import StandardScaler
@@ -246,5 +247,58 @@ def five():
     test_acc  = accuracy_score(y_test, y_test_pred)
     print('SVC Accuracy ', test_acc)
 
+    # --- 2. Виявлення аномалій за допомогою Z-score ---
+
+
+def detect_outliers_zscore(data, threshold=3):
+    z_scores = np.abs(stats.zscore(data))
+    return (z_scores > threshold)
+
+def detect_outliers_iqr(data, factor=1.5):
+    Q1 = data.quantile(0.25)
+    Q3 = data.quantile(0.75)
+    IQR = Q3 - Q1
+    lower_bound = Q1 - factor * IQR
+    upper_bound = Q3 + factor * IQR
+    return (data < lower_bound) | (data > upper_bound)
+
+def six():
+    df = pd.read_csv("ML/pima.csv")  
+    print("Data")
+    print(df.head())
+
+    cols = df.select_dtypes(include=[np.number]).columns
+
+    df1=df
+
+    for col in cols:
+        outliers = detect_outliers_iqr(df[col])
+        count_outliers = outliers.sum()
+        if count_outliers!=0:
+            print(f"\nIQR Analyse {col}")
+            print(f"Detect {count_outliers} outliers")
+
+        median_value = df[col].median()
+        df.loc[outliers, col] = median_value
+
+
+
+        outliers = detect_outliers_zscore(df[col])
+        count_outliers = outliers.sum()
+        if count_outliers!=0:
+            print(f"\nZSCORE Analyse {col}")
+            print(f"Detect {count_outliers} outliers")
+
+        median_value = df1[col].median()
+        df1.loc[outliers, col] = median_value
+
+    print("\nData After IQR")
+    print(df.head())
+
+    print("\nData After ZSCORE")
+    print(df.head())
+
+
 data(1)
-one()
+six()
+
