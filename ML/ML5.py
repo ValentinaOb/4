@@ -267,6 +267,25 @@ def six():
     print("Data")
     print(df.head())
 
+    df = df.apply(lambda col: col.fillna(round(col.mean(),3)))
+
+    X = df.drop('Outcome', axis=1)
+    y = df['Outcome']
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
+    
+    scaler = MinMaxScaler()
+    X_train_s = scaler.fit_transform(X_train)
+    X_test_s = scaler.transform(X_test)
+
+    svc1 = SVC(C=1.0, kernel='linear')
+    svc1.fit(X_train_s, y_train)
+    n_sv = svc1.support_vectors_.shape[0]
+    print('\nNumb of support vectors ',n_sv)
+    y_test_pred  = svc1.predict(X_test_s)
+    test_acc  = accuracy_score(y_test, y_test_pred)
+    print('IQR Accuracy ', test_acc)
+
+    # Outliers
     cols = df.select_dtypes(include=[np.number]).columns
 
     df1=df
@@ -280,9 +299,8 @@ def six():
 
         median_value = df[col].median()
         df.loc[outliers, col] = median_value
-
-
-
+        
+        #
         outliers = detect_outliers_zscore(df[col])
         count_outliers = outliers.sum()
         if count_outliers!=0:
@@ -292,12 +310,50 @@ def six():
         median_value = df1[col].median()
         df1.loc[outliers, col] = median_value
 
+    
     print("\nData After IQR")
     print(df.head())
 
     print("\nData After ZSCORE")
-    print(df.head())
+    print(df1.head())
+    
+    
+    X = df.drop('Outcome', axis=1)
+    y = df['Outcome']
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
+    
+    scaler = MinMaxScaler()
+    X_train_s = scaler.fit_transform(X_train)
+    X_test_s = scaler.transform(X_test)
 
+    svc1 = SVC(C=1.0, kernel='linear')
+    svc1.fit(X_train_s, y_train)
+
+    n_sv = svc1.support_vectors_.shape[0]
+    print('\nNumb of support vectors ',n_sv)
+
+    y_test_pred  = svc1.predict(X_test_s)
+    test_acc  = accuracy_score(y_test, y_test_pred)
+    print('IQR Accuracy ', test_acc)
+
+    #
+    X = df1.drop('Outcome', axis=1)
+    y = df1['Outcome']
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
+    
+    scaler = MinMaxScaler()
+    X_train_s = scaler.fit_transform(X_train)
+    X_test_s = scaler.transform(X_test)
+
+    svc1 = SVC(C=1.0, kernel='linear')
+    svc1.fit(X_train_s, y_train)
+
+    n_sv = svc1.support_vectors_.shape[0]
+    print('\nNumb of support vectors ',n_sv)
+
+    y_test_pred  = svc1.predict(X_test_s)
+    test_acc  = accuracy_score(y_test, y_test_pred)
+    print('ZSCORE Accuracy ', test_acc)
 
 data(1)
 six()
